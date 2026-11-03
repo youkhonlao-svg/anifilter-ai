@@ -7,8 +7,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
-from backend.anilist_service import search_anime, get_anime_details
-from backend.filler_service import find_best_slug, get_episodes_from_filler_list, generate_default_episodes
+from backend.anilist_service import search_anime, get_anime_details, classify_related_content
+from backend.filler_service import find_best_slug, get_episodes_from_filler_list, generate_smart_episodes, generate_default_episodes
 from backend.ai_curator import group_episodes_into_arcs, generate_ai_analysis, answer_ai_question
 from backend.database import save_user_progress, get_user_progress
 from backend.series_service import search_live_action_series, get_series_guide
@@ -131,6 +131,7 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
     romaji_title = details.get("title", {}).get("romaji") or ""
     english_title = details.get("title", {}).get("english") or ""
     alt_candidates = [english_title, romaji_title]
+    anime_format = details.get("format", "TV")
 
     slug = find_best_slug(primary_title, alt_candidates)
     filler_data = None
@@ -139,7 +140,11 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
 
     if not filler_data:
         ep_count = details.get("episodes")
-        filler_data = generate_default_episodes(ep_count, primary_title)
+        filler_data = generate_smart_episodes(ep_count, primary_title, anime_format)
+
+    # ── Classify related content (OVA / Special / Sequel / etc.) ──────────
+    relations_edges = details.get("relations", {}).get("edges", [])
+    related_content = classify_related_content(relations_edges)
 
     ai_summary = generate_ai_analysis({
         "title_english": english_title or primary_title,
@@ -174,11 +179,13 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
             "time_saved_hours": filler_data["time_saved_hours"],
             "watch_ranges": filler_data["watch_ranges"],
             "skip_ranges": filler_data["skip_ranges"],
-            "source": filler_data.get("source", "AnimeFillerList (Cached)")
+            "source": filler_data.get("source", "AniList"),
+            "note": filler_data.get("note", ""),
         },
         "ai_analysis": ai_summary,
         "arcs": arcs,
         "episodes": filler_data["episodes"],
+        "related_content": related_content,
         "streaming_links": streaming_links
     }
 
