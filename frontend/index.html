@@ -448,6 +448,29 @@
                 </div>
             </div>
 
+            <!-- Data Source & Accuracy Note -->
+            <div id="dataSourcePanel" class="hidden bg-[#07090e] border border-[#303139] rounded-[5px] p-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div class="flex items-center gap-2 shrink-0">
+                    <i data-lucide="database" class="w-3.5 h-3.5 text-[#ff951f]"></i>
+                    <span class="text-[10px] font-mono uppercase tracking-wider text-[#ff951f]">DATA SOURCE</span>
+                </div>
+                <div class="space-y-1 min-w-0">
+                    <p id="dataSourceText" class="text-xs font-mono text-[#edcd8c]"></p>
+                    <p id="dataSourceNote" class="text-xs text-[#c9ced8] leading-relaxed hidden"></p>
+                </div>
+            </div>
+
+            <!-- Related Content Panel (OVA / Special / Sequel / Prequel) -->
+            <div id="relatedContentPanel" class="hidden space-y-3">
+                <div class="flex items-center gap-3 border-b border-[#303139] pb-3">
+                    <div class="w-1 h-5 bg-[#edcd8c] rounded-full"></div>
+                    <span class="text-xs font-mono uppercase tracking-wider text-[#edcd8c]">เนื้อหาที่เกี่ยวข้อง — OVA / ภาคพิเศษ / ภาคต่อ</span>
+                </div>
+                <div id="relatedContentGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+
         </div>
 
         <!-- Default Feature Matrix (Three-column capability arrangement) -->
@@ -802,6 +825,8 @@
                 renderStats(data.stats, data.ai_analysis);
                 renderArcs(data.arcs);
                 renderEpisodesTable(data.episodes);
+                renderRelatedContent(data.related_content || []);
+                renderDataSource(data.stats);
                 
                 await syncWatchedFromServer(id);
 
@@ -951,6 +976,72 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        // ── Data Source Banner ────────────────────────────────────────────────
+        function renderDataSource(stats) {
+            const panel = document.getElementById('dataSourcePanel');
+            const srcText = document.getElementById('dataSourceText');
+            const noteEl = document.getElementById('dataSourceNote');
+            if (!stats) { panel.classList.add('hidden'); return; }
+            srcText.textContent = stats.source || '';
+            const note = stats.note || '';
+            if (note) {
+                noteEl.innerHTML = note.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#f4f5f7]">$1</strong>');
+                noteEl.classList.remove('hidden');
+            } else {
+                noteEl.classList.add('hidden');
+            }
+            panel.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // ── Related Content (OVA / Specials / Sequel / Prequel) ──────────────
+        function renderRelatedContent(related) {
+            const panel = document.getElementById('relatedContentPanel');
+            const grid  = document.getElementById('relatedContentGrid');
+            if (!related || related.length === 0) { panel.classList.add('hidden'); return; }
+
+            const colorMap = {
+                gold:   { border: 'border-[#edcd8c]/40', text: 'text-[#edcd8c]', bg: 'bg-[#101522]', dot: 'bg-[#edcd8c]' },
+                red:    { border: 'border-red-500/30',   text: 'text-red-400',   bg: 'bg-[#07090e]', dot: 'bg-red-500'   },
+                blue:   { border: 'border-blue-400/30',  text: 'text-blue-300',  bg: 'bg-[#07090e]', dot: 'bg-blue-400'  },
+                yellow: { border: 'border-[#ff951f]/30', text: 'text-[#ff951f]', bg: 'bg-[#07090e]', dot: 'bg-[#ff951f]' },
+                purple: { border: 'border-purple-400/30',text: 'text-purple-300',bg: 'bg-[#07090e]', dot: 'bg-purple-400'},
+                gray:   { border: 'border-[#303139]',    text: 'text-[#c9ced8]', bg: 'bg-[#07090e]', dot: 'bg-[#c9ced8]' },
+            };
+
+            grid.innerHTML = related.map(item => {
+                const c = colorMap[item.badge_color] || colorMap.gray;
+                const isImportant = item.important;
+                const epStr = item.episodes ? `${item.episodes} ตอน` : '';
+                const fmtStr = item.format || '';
+                const meta = [fmtStr, epStr].filter(Boolean).join(' • ');
+                const coverHtml = item.cover_image
+                    ? `<img src="${item.cover_image}" class="w-10 h-14 object-cover rounded-[3px] border border-[#303139] shrink-0">`
+                    : `<div class="w-10 h-14 rounded-[3px] border border-[#303139] bg-[#07090e] shrink-0 flex items-center justify-center"><i data-lucide="film" class="w-4 h-4 text-[#303139]"></i></div>`;
+                return `
+                    <div class="p-4 rounded-[5px] border ${c.border} bg-[#10141c] space-y-2.5 ${isImportant ? 'ring-1 ring-[#edcd8c]/20' : ''}">
+                        <div class="flex items-start gap-3">
+                            ${coverHtml}
+                            <div class="flex-1 min-w-0 space-y-1">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}"></span>
+                                    <span class="text-[10px] font-mono uppercase ${c.text}">${item.thai_label}</span>
+                                    ${isImportant ? '<span class="text-[9px] font-mono bg-[#edcd8c]/15 text-[#edcd8c] px-1.5 py-0.5 rounded-[2px]">RECOMMENDED</span>' : ''}
+                                </div>
+                                <h4 class="text-xs font-medium text-[#f4f5f7] leading-snug">${item.title || item.title_romaji || '-'}</h4>
+                                ${meta ? `<p class="text-[10px] font-mono text-[#c9ced8]/60">${meta}</p>` : ''}
+                            </div>
+                        </div>
+                        <div class="pt-1 border-t border-[#303139]">
+                            <p class="text-[11px] text-[#c9ced8] leading-relaxed">${item.recommendation}</p>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            panel.classList.remove('hidden');
+            lucide.createIcons();
         }
 
         // View Switching
