@@ -18,10 +18,37 @@ COUNTRY_MAP = {
     "ES": "SPANISH SERIES (ซีรีส์สเปน)"
 }
 
+# Keywords that mark an episode as a special/bonus — not main story
+SPECIAL_KEYWORDS = [
+    "recap", "behind the scenes", "making of", "interview",
+    "inside the episode", "the story so far", "previously on",
+    "last watch", "conquest & rebellion", "animated history",
+    "documentary", "featurette", "preview", "first look",
+    "web exclusive", "bonus", "extended", "sneak peek",
+    "fan questions", "cast", "showrunner"
+]
+
 def clean_html(text: Optional[str]) -> str:
     if not text:
         return ""
     return re.sub(r"<[^>]*>", "", text).strip()
+
+def is_special_episode(ep: dict) -> bool:
+    """Detect if an episode is a special/bonus rather than main story."""
+    season_num = ep.get("season", 1)
+    ep_num = ep.get("number")  # None = specials in TVMaze
+    name = (ep.get("name") or "").lower()
+
+    # TVMaze uses season=0 OR number=None for specials
+    if season_num == 0 or ep_num is None:
+        return True
+
+    # Name-based detection
+    for kw in SPECIAL_KEYWORDS:
+        if kw in name:
+            return True
+
+    return False
 
 def search_live_action_series(query: str) -> List[Dict[str, Any]]:
     """Search TVMaze for live-action TV series (Korean, Japanese, US, etc.)."""
@@ -49,7 +76,7 @@ def search_live_action_series(query: str) -> List[Dict[str, Any]]:
                     "title_english": show.get("name", ""),
                     "title_romaji": show.get("name", ""),
                     "title_native": "",
-                    "episodes": None,  # Will be counted in details
+                    "episodes": None,
                     "format": fmt_label,
                     "status": show.get("status", ""),
                     "score": int(show.get("rating", {}).get("average", 0) * 10) if show.get("rating", {}).get("average") else None,
@@ -66,8 +93,8 @@ def search_live_action_series(query: str) -> List[Dict[str, Any]]:
     return []
 
 def get_series_guide(series_id: int) -> Optional[Dict[str, Any]]:
-    """Get complete episode guide for a live-action series with seasons & specials."""
-    cache_key = 9000000 + series_id  # Offset ID for series cache
+    """Get complete episode guide for a live-action series with correct season grouping."""
+    cache_key = 9000000 + series_id
     cached = get_cached_anime(cache_key)
     if cached:
         return cached
@@ -80,86 +107,136 @@ def get_series_guide(series_id: int) -> Optional[Dict[str, Any]]:
             return None
         show = resp_show.json()
 
-        # 2. Fetch Episodes
+        # 2. Fetch Episodes with specials=1 so we know what to exclude
         url_eps = f"{TVMAZE_API_URL}/shows/{series_id}/episodes?specials=1"
         resp_eps = requests.get(url_eps, timeout=10)
         if resp_eps.status_code != 200:
             return None
         raw_eps = resp_eps.json()
 
-        episodes = []
-        filler_count = 0
-        canon_count = 0
+        # ── Pass 1: Build episode list with correct absolute numbering ──
+        # Main episodes (season >= 1, number not None) get sequential absolute numbers
+        # Specials are collected separately
 
-        for idx, ep in enumerate(raw_eps, start=1):
-            ep_name = ep.get("name") or f"Episode {ep.get('number') or idx}"
-            ep_name_low = ep_name.lower()
-            season_num = ep.get("season", 1)
-            ep_num = ep.get("number") or idx
-            is_special = (
-                "special" in ep_name_low or 
-                "recap" in ep_name_low or 
-                "behind the scenes" in ep_name_low or 
-                "making of" in ep_name_low or
-                "interview" in ep_name_low or
-                season_num == 0
-            )
+        main_episodes = []
+        special_episodes = []
 
-            if is_special:
-                badge = "filler"
-                canonical_type = "Special / Recap (ตอนพิเศษ/ย้อนความ)"
-                rec = "SKIP"
-                filler_count += 1
+        for ep in raw_eps:
+            if is_special_episode(ep):
+                special_episodes.append(ep)
             else:
-                badge = "canon"
-                canonical_type = f"Season {season_num} Main Story"
-                rec = "MUST_WATCH"
-                canon_count += 1
+                main_episodes.append(ep)
+
+        # Sort main episodes by (season, episode number)
+        main_episodes.sort(key=lambda e: (e.get("season", 1), e.get("number", 0)))
+
+        # Build processed episode list with absolute numbering
+        episodes = []
+        abs_num = 0
+
+        for ep in main_episodes:
+            abs_num += 1
+            season_num = ep.get("season", 1)
+            ep_in_season = ep.get("number", abs_num)
+            ep_name = ep.get("name") or f"Episode {ep_in_season}"
 
             episodes.append({
-                "number": idx,
+                "number": abs_num,
                 "season": season_num,
-                "episode_in_season": ep_num,
-                "title": f"S{season_num}E{ep_num}: {ep_name}",
-                "type": canonical_type,
-                "badge": badge,
-                "watch_recommendation": rec,
+                "episode_in_season": ep_in_season,
+                "title": f"S{season_num}E{ep_in_season}: {ep_name}",
+                "type": f"Season {season_num} Main Story",
+                "badge": "canon",
+                "watch_recommendation": "MUST_WATCH",
                 "air_date": ep.get("airdate", ""),
                 "summary": clean_html(ep.get("summary"))
             })
 
+        # Add specials at the end with their own numbering
+        special_abs = abs_num
+        for ep in special_episodes:
+            special_abs += 1
+            season_num = ep.get("season", 0)
+            ep_in_season = ep.get("number") or 0
+            ep_name = ep.get("name") or "Special"
+
+            episodes.append({
+                "number": special_abs,
+                "season": season_num,
+                "episode_in_season": ep_in_season,
+                "title": f"Special: {ep_name}",
+                "type": "Special / Recap (ตอนพิเศษ/ย้อนความ)",
+                "badge": "filler",
+                "watch_recommendation": "SKIP",
+                "air_date": ep.get("airdate", ""),
+                "summary": clean_html(ep.get("summary"))
+            })
+
+        canon_count = len(main_episodes)
+        filler_count = len(special_episodes)
         total = len(episodes)
         filler_pct = round((filler_count / total) * 100, 1) if total > 0 else 0
-        time_saved_hours = round((filler_count * 50) / 60, 1)  # Avg 50 mins per TV episode
+        time_saved_hours = round((filler_count * 50) / 60, 1)
 
-        # Generate Seasons / Arcs
-        seasons_map = {}
+        # ── Pass 2: Build Season Arcs from MAIN episodes only ──
+        seasons_map: Dict[int, List] = {}
         for ep in episodes:
-            s_num = ep["season"]
-            if s_num not in seasons_map:
-                seasons_map[s_num] = []
-            seasons_map[s_num].append(ep)
+            if ep["badge"] == "canon":
+                s_num = ep["season"]
+                if s_num not in seasons_map:
+                    seasons_map[s_num] = []
+                seasons_map[s_num].append(ep)
 
         arcs = []
         for s_num, s_eps in sorted(seasons_map.items()):
-            first_ep = s_eps[0]["number"]
-            last_ep = s_eps[-1]["number"]
-            s_title = f"ซีซัน {s_num} (Season {s_num})" if s_num > 0 else "ตอนพิเศษ / เบื้องหลัง (Specials)"
+            first_abs = s_eps[0]["number"]
+            last_abs = s_eps[-1]["number"]
+            first_in_season = s_eps[0]["episode_in_season"]
+            last_in_season = s_eps[-1]["episode_in_season"]
+            s_label = f"ซีซัน {s_num} (Season {s_num})"
+
             arcs.append({
                 "arc_number": s_num,
-                "title": s_title,
-                "range_display": f"ตอนที่ {first_ep} – {last_ep}",
-                "start_ep": first_ep,
-                "end_ep": last_ep,
+                "title": s_label,
+                "range_display": f"ตอนที่ {first_abs}–{last_abs}  (S{s_num}E{first_in_season}–E{last_in_season})",
+                "start_ep": first_abs,
+                "end_ep": last_abs,
                 "episodes_count": len(s_eps),
-                "status_label": "เนื้อเรื่องหลัก (Canon)" if s_num > 0 else "ตอนเสริมพิเศษ (Special)",
-                "recommendation": "ต้องดู (Must Watch)" if s_num > 0 else "เลือกดูได้ (Optional)",
-                "badge_color": "green" if s_num > 0 else "yellow",
-                "is_filler": s_num == 0,
-                "description": f"ดำเนินเรื่องหลักในซีซันที่ {s_num} รวม {len(s_eps)} ตอน",
+                "status_label": "เนื้อเรื่องหลัก (Canon)",
+                "recommendation": "ต้องดู (Must Watch)",
+                "badge_color": "green",
+                "is_filler": False,
+                "description": f"เนื้อเรื่องหลักซีซัน {s_num} รวม {len(s_eps)} ตอน  (ตอน {first_abs}–{last_abs})",
                 "sample_episodes": s_eps[:3]
             })
 
+        # Add specials arc if any
+        if special_episodes:
+            spec_eps_processed = [e for e in episodes if e["badge"] == "filler"]
+            arcs.append({
+                "arc_number": 0,
+                "title": "ตอนพิเศษ / เบื้องหลัง (Specials)",
+                "range_display": f"Special ({filler_count} ตอน)",
+                "start_ep": abs_num + 1,
+                "end_ep": total,
+                "episodes_count": filler_count,
+                "status_label": "ตอนเสริมพิเศษ (Special/Recap)",
+                "recommendation": "เลือกดูได้ (Optional)",
+                "badge_color": "yellow",
+                "is_filler": True,
+                "description": f"ตอนพิเศษ สารคดีเบื้องหลัง และตอนย้อนความ {filler_count} ตอน",
+                "sample_episodes": spec_eps_processed[:3]
+            })
+
+        # ── Build accurate watch/skip ranges ──
+        watch_ranges = []
+        skip_ranges = []
+        if canon_count > 0:
+            watch_ranges.append(f"1–{canon_count}")
+        if filler_count > 0:
+            skip_ranges.append(f"Specials ({filler_count} ตอน)")
+
+        # Network / format
         network = show.get("network") or show.get("webChannel") or {}
         country_code = ""
         if isinstance(network, dict):
@@ -167,14 +244,28 @@ def get_series_guide(series_id: int) -> Optional[Dict[str, Any]]:
             country_code = country_info.get("code", "")
         fmt_label = COUNTRY_MAP.get(country_code, "TV SERIES")
 
-        # Natural Thai guidance
         title = show.get("name", "")
-        if filler_count == 0:
-            verdict = f"🎬 **{title}** เป็นซีรีส์ที่ดำเนินเนื้อเรื่องต่อเนื่อง 100% (Serialized Plot) ไม่มีตอนข้ามหรือตอนย้อนความ แนะนำให้ดูเรียงลำดับตั้งแต่ตอนแรกจนจบเพื่ออรรถรสสูงสุดครับ!"
-        else:
-            verdict = f"🎬 **{title}** มีเนื้อเรื่องหลัก {canon_count} ตอน และมีตอนพิเศษ/ย้อนความ {filler_count} ตอน สามารถดูเฉพาะตอนในซีซันหลักและข้ามตอน Recap เพื่อความกระชับได้ ประหยัดเวลาไปได้ {time_saved_hours} ชั่วโมงครับ"
 
-        # Streaming links for Live-Action
+        # AI Verdict
+        if filler_count == 0:
+            verdict = (
+                f"🎬 **{title}** เป็นซีรีส์เนื้อเรื่องต่อเนื่อง 100% — ทั้งหมด {canon_count} ตอน "
+                f"ใน {len(arcs)} ซีซัน ไม่มีตอน Filler หรือตอนย้อนความ "
+                f"แนะนำดูเรียงลำดับตั้งแต่ตอนที่ 1 จนจบ!"
+            )
+        else:
+            verdict = (
+                f"🎬 **{title}** มีเนื้อเรื่องหลัก **{canon_count} ตอน** ใน {len(seasons_map)} ซีซัน "
+                f"และตอนพิเศษ/เบื้องหลัง {filler_count} ตอน (ข้ามได้) "
+                f"ประหยัดเวลาได้ {time_saved_hours} ชั่วโมง"
+            )
+
+        action_plan = (
+            f"ดูเรียงตาม {len(arcs)} ซีซัน (ตอนที่ 1–{canon_count}) "
+            f"{'| ข้าม Specials ได้ทั้งหมด' if filler_count > 0 else '| ดูครบทุกตอนได้เลย!'}"
+        )
+
+        # Streaming links
         q_enc = urllib.parse.quote(title)
         streaming_links = [
             {"name": "Netflix", "url": f"https://www.netflix.com/search?q={q_enc}", "color": "from-red-600 to-rose-700", "icon": "film"},
@@ -195,7 +286,7 @@ def get_series_guide(series_id: int) -> Optional[Dict[str, Any]]:
                 "title_native": "",
                 "format": fmt_label,
                 "status": show.get("status", ""),
-                "episodes": total,
+                "episodes": canon_count,   # Show MAIN episode count, not including specials
                 "score": int(show.get("rating", {}).get("average", 0) * 10) if show.get("rating", {}).get("average") else None,
                 "year": show.get("premiered", "")[:4] if show.get("premiered") else "",
                 "cover_image": cover,
@@ -204,30 +295,30 @@ def get_series_guide(series_id: int) -> Optional[Dict[str, Any]]:
                 "genres": show.get("genres", [])
             },
             "stats": {
-                "total_episodes": total,
+                "total_episodes": canon_count,    # Main episodes only
+                "total_with_specials": total,     # Including specials
                 "canon_count": canon_count,
                 "mixed_count": 0,
                 "filler_count": filler_count,
                 "filler_percentage": filler_pct,
                 "time_saved_hours": time_saved_hours,
-                "watch_ranges": [f"1-{total}"],
-                "skip_ranges": [],
+                "watch_ranges": watch_ranges,
+                "skip_ranges": skip_ranges,
                 "source": "TVMaze (Live-Action Global)"
             },
             "ai_analysis": {
                 "verdict": verdict,
-                "action_plan": "ดูเรียงตามลำดับตอนในแต่ละซีซันได้เลย",
+                "action_plan": action_plan,
                 "time_saved_display": f"{time_saved_hours} ชม.",
                 "filler_rate_display": f"{filler_pct}%",
-                "quick_watch_string": f"1-{total}",
-                "quick_skip_string": "ไม่มี"
+                "quick_watch_string": f"1–{canon_count}",
+                "quick_skip_string": f"Specials {filler_count} ตอน" if filler_count > 0 else "ไม่มี"
             },
             "arcs": arcs,
             "episodes": episodes,
             "streaming_links": streaming_links
         }
 
-        # Cache in SQLite
         set_cached_anime(cache_key, title, result)
         return result
 
