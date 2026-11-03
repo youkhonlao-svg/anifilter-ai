@@ -73,17 +73,36 @@ def get_legal_streaming_links(title: str) -> List[Dict[str, str]]:
 @app.get("/api/search")
 def api_search(q: str = Query(..., min_length=1), media_type: str = Query("all")):
     """Universal search for Anime, Live-Action K-Drama, J-Drama, US Series, and Movies."""
-    results = []
+    import re as _re
+
+    anime_results = []
+    series_results = []
 
     # 1. Search Anime via AniList
     if media_type in ("all", "anime"):
         anime_results = search_anime(q)
-        results.extend(anime_results)
 
     # 2. Search Live-Action Series (Korean, US, Japanese, etc.) via TVMaze
     if media_type in ("all", "series"):
         series_results = search_live_action_series(q)
-        results.extend(series_results)
+
+    # 3. Deduplicate: if AniList already has a title, remove TVMaze duplicate
+    #    AniList anime always takes priority over TVMaze for the same title
+    def _norm(t: str) -> str:
+        return _re.sub(r"[^a-z0-9]", "", (t or "").lower())
+
+    anime_titles = {_norm(r.get("title_english", "") or r.get("title_romaji", "")) for r in anime_results}
+
+    deduped_series = []
+    for s in series_results:
+        s_title = _norm(s.get("title_english", "") or "")
+        # Skip TVMaze result if AniList already has a very similar title
+        if s_title and s_title in anime_titles:
+            continue
+        deduped_series.append(s)
+
+    # Anime first, then live-action series
+    results = anime_results + deduped_series
 
     return {"query": q, "results": results}
 
