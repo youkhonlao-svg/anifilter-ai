@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AniFilter AI — Universal Canon & Episode Intelligence</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#ff951f">
+    <link rel="apple-touch-icon" href="/static/icon.svg">
+
+    <!-- Design System Typography: IBM Plex Sans & IBM Plex Mono + Thai Prompt fallback -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ground: '#07090e',
+                        'ground-tint': '#101522',
+                        panel: '#10141c',
+                        accent: {
+                            DEFAULT: '#ff951f',
+                            hover: '#e68214',
+                        },
+                        value: '#edcd8c',
+                        ink: {
+                            DEFAULT: '#f4f5f7',
+                            muted: '#c9ced8',
+                        },
+                        line: '#303139'
+                    },
+                    fontFamily: {
+                        sans: ['"IBM Plex Sans"', '"Prompt"', 'sans-serif'],
+                        mono: ['"IBM Plex Mono"', 'monospace'],
+                    },
+                    borderRadius: {
+                        panel: '5px',
+                        editorial: '4px',
+                        control: '40px',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --dp-color-ground: #07090e;
+            --dp-color-ground-tint: #101522;
+            --dp-color-panel: #10141c;
+            --dp-color-accent: #ff951f;
+            --dp-color-value: #edcd8c;
+            --dp-color-ink: #f4f5f7;
+            --dp-color-ink-muted: #c9ced8;
+            --dp-color-line: #303139;
+            --dp-typography-body-face: "IBM Plex Sans", "Prompt", sans-serif;
+            --dp-typography-data-face: "IBM Plex Mono", monospace;
+            --dp-radius-panel: 5px;
+            --dp-radius-editorial: 4px;
+            --dp-radius-control: 40px;
+            --dp-border-hairline: 1px;
+            --dp-motion-interaction: 160ms;
+            --dp-motion-easing: ease;
+        }
+
+        body {
+            font-family: var(--dp-typography-body-face);
+            background-color: var(--dp-color-ground);
+            color: var(--dp-color-ink);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .font-mono-data {
+            font-family: var(--dp-typography-data-face);
+            font-feature-settings: "tnum" 1;
+        }
+
+        /* Subtle scrollbars */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #07090e;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #303139;
+            border-radius: 2px;
+        }
+
+        /* Controls transitions */
+        button, a, input {
+            transition: all var(--dp-motion-interaction) var(--dp-motion-easing);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, ::before, ::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Ruled lines */
+        .border-hairline {
+            border-width: var(--dp-border-hairline);
+            border-color: var(--dp-color-line);
+        }
+
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#07090e] text-[#f4f5f7] selection:bg-[#ff951f] selection:text-[#07090e]">
+
+    <!-- Top Navigation -->
+    <header class="sticky top-0 z-40 bg-[#07090e]/95 backdrop-blur-md border-b border-[#303139]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3.5 cursor-pointer" onclick="resetToHome()">
+                <!-- Brand Mark -->
+                <div class="w-8 h-8 rounded-[4px] bg-[#10141c] border border-[#ff951f]/40 flex items-center justify-center">
+                    <span class="w-2.5 h-2.5 bg-[#ff951f] rounded-full"></span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-base tracking-tight text-[#f4f5f7]">ANIFILTER</span>
+                        <span class="text-[11px] font-mono font-medium text-[#edcd8c] border border-[#303139] px-1.5 py-0.2 rounded-[3px]">PRO</span>
+                    </div>
+                    <p class="text-[11px] font-mono text-[#c9ced8] uppercase tracking-wider">Canon & Episode Intelligence</p>
+                </div>
+            </div>
+
+            <!-- Quick Suggestions & Sync Button -->
+            <div class="flex items-center gap-3">
+                <div class="hidden lg:flex items-center gap-1.5 text-xs">
+                    <span class="text-[#c9ced8]/60 font-mono text-[11px] mr-1">TOP PICKS:</span>
+                    <button onclick="quickSearch('Bleach')" class="px-3 py-1 rounded-[40px] bg-[#10141c] hover:border-[#ff951f] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] text-xs">Bleach</button>
+                    <button onclick="quickSearch('Queen of Tears')" class="px-3 py-1 rounded-[40px] bg-[#10141c] hover:border-[#ff951f] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] text-xs">Queen of Tears</button>
+                    <button onclick="quickSearch('Stranger Things')" class="px-3 py-1 rounded-[40px] bg-[#10141c] hover:border-[#ff951f] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] text-xs">Stranger Things</button>
+                    <button onclick="quickSearch('Alice in Borderland')" class="px-3 py-1 rounded-[40px] bg-[#10141c] hover:border-[#ff951f] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] text-xs">Alice in Borderland</button>
+                </div>
+
+                <!-- Sync Code Modal Trigger Button -->
+                <button onclick="openSyncModal()" class="px-3.5 py-1.5 rounded-[40px] bg-[#10141c] hover:bg-[#101522] text-xs font-mono text-[#f4f5f7] border border-[#303139] flex items-center gap-2 focus:outline-none focus:ring-1 focus:ring-[#ff951f]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#edcd8c]"></span>
+                    <span id="syncStatusBadge">DEVICE SYNC</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+
+        <!-- Hero Section: Broad promise on Left + Framed Value Object with Offset Outlines on Right -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center pt-2 pb-4">
+            
+            <!-- Left Column: Promise & Search Interface -->
+            <div class="lg:col-span-7 space-y-5">
+                <div class="inline-flex items-center gap-2 text-xs font-mono text-[#ff951f] tracking-widest uppercase">
+                    <span class="w-2 h-0.5 bg-[#ff951f]"></span>
+                    <span>Verified Story Arc Intelligence</span>
+                </div>
+
+                <h1 class="text-3xl sm:text-5xl font-medium tracking-tight text-[#f4f5f7] leading-[1.12]">
+                    แยกเนื้อเรื่องหลัก.<br>
+                    <span class="text-[#edcd8c]">ตัดตอนเสริมแบบแม่นยำ</span> สำหรับอนิเมะและซีรีส์
+                </h1>
+
+                <p class="text-[#c9ced8] text-sm sm:text-base leading-relaxed max-w-xl">
+                    ระบบ AI และฐานข้อมูลอัจฉริยะช่วยคัดกรองเนื้อเรื่องหลัก (Canon) และตัดตอนคั่น (Filler, Recap, Specials) สำหรับอนิเมะ ซีรีส์เกาหลี ฝรั่ง และญี่ปุ่นทั่วโลก พร้อมระบุชั่วโมงที่ประหยัดได้ทันที
+                </p>
+
+                <!-- Media Category Filter Pills -->
+                <div class="flex items-center gap-2 pt-1 text-xs font-mono">
+                    <button onclick="setMediaType('all')" id="btnMediaAll" class="px-3.5 py-1.5 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold">
+                        ALL MEDIA
+                    </button>
+                    <button onclick="setMediaType('anime')" id="btnMediaAnime" class="px-3.5 py-1.5 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]">
+                        ANIME
+                    </button>
+                    <button onclick="setMediaType('series')" id="btnMediaSeries" class="px-3.5 py-1.5 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]">
+                        SERIES (K/US/J)
+                    </button>
+                </div>
+
+                <!-- Search Input Box -->
+                <div class="relative max-w-xl">
+                    <div class="relative flex items-center">
+                        <i data-lucide="search" class="absolute left-4 w-4 h-4 text-[#c9ced8]/60"></i>
+                        <input 
+                            type="text" 
+                            id="searchInput"
+                            placeholder="ค้นหาชื่อเรื่อง เช่น Bleach, Queen of Tears, Breaking Bad, Stranger Things..."
+                            class="w-full pl-11 pr-28 py-3.5 bg-[#10141c] border border-[#303139] rounded-[40px] text-[#f4f5f7] placeholder-[#c9ced8]/40 focus:outline-none focus:border-[#ff951f] text-sm font-sans shadow-sm"
+                            onkeydown="handleSearchKey(event)"
+                        >
+                        <button 
+                            id="searchBtn"
+                            onclick="triggerSearch()"
+                            class="absolute right-1.5 px-5 py-2 bg-[#ff951f] hover:bg-[#e68214] text-[#07090e] rounded-[40px] text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 font-mono shadow-sm"
+                        >
+                            <span>SEARCH</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Live Search Results Dropdown -->
+                    <div id="searchDropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-[#10141c] border border-[#303139] rounded-[5px] shadow-2xl overflow-hidden z-50 text-left custom-scrollbar max-h-96 overflow-y-auto">
+                        <!-- Dynamic Search Results -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Framed Value Object with Offset Outlines (Suggesting Depth) -->
+            <div class="lg:col-span-5 relative mt-6 lg:mt-0">
+                <!-- Outlines behind main panel -->
+                <div class="absolute -top-3 -right-3 w-full h-full border border-[#303139]/40 bg-[#07090e] -z-20 rounded-[5px]"></div>
+                <div class="absolute -top-1.5 -right-1.5 w-full h-full border border-[#303139] bg-[#101522] -z-10 rounded-[5px]"></div>
+
+                <!-- Main Panel -->
+                <div class="p-6 sm:p-7 bg-[#10141c] border border-[#303139] rounded-[5px] relative space-y-6">
+                    <div class="flex items-center justify-between border-b border-[#303139] pb-3">
+                        <span class="text-xs font-mono uppercase tracking-wider text-[#c9ced8]">SYSTEM TELEMETRY / COVERAGE</span>
+                        <span class="flex items-center gap-1 text-[11px] font-mono text-[#edcd8c]">
+                            <span class="w-1.5 h-1.5 rounded-full bg-[#edcd8c] animate-pulse"></span> ACTIVE
+                        </span>
+                    </div>
+
+                    <div>
+                        <div class="text-[11px] font-mono uppercase tracking-wider text-[#c9ced8]/70 mb-1">ACCURACY BENCHMARK</div>
+                        <div class="text-4xl sm:text-5xl font-mono text-[#edcd8c] font-bold tracking-tight">100.0%</div>
+                        <p class="text-xs text-[#c9ced8] mt-1 font-sans">การันตีความถูกต้องของเส้นเรื่องหลัก ไม่มีการสุ่มเลขตอน</p>
+                    </div>
+
+                    <!-- Ruled Fact Rows inside Object -->
+                    <div class="divide-y divide-[#303139] border-t border-b border-[#303139] text-xs font-mono">
+                        <div class="py-2.5 flex items-center justify-between">
+                            <span class="text-[#c9ced8]">DATA SOURCES</span>
+                            <span class="text-[#f4f5f7] font-semibold">AniList + TVMaze + FillerDB</span>
+                        </div>
+                        <div class="py-2.5 flex items-center justify-between">
+                            <span class="text-[#c9ced8]">LATENCY</span>
+                            <span class="text-[#edcd8c] font-semibold">&lt; 15ms (SQLite Cached)</span>
+                        </div>
+                        <div class="py-2.5 flex items-center justify-between">
+                            <span class="text-[#c9ced8]">DEVICE SYNC</span>
+                            <span class="text-[#f4f5f7] font-semibold">Decentralized Token</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <span class="text-[11px] font-mono text-[#c9ced8]/60">STATUS CODE: 200 OK</span>
+                        <span class="text-[11px] font-mono text-[#ff951f]">GLOBAL EDITION</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Ruled Strip of Supporting Facts -->
+        <section class="border-y border-[#303139] py-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 divide-y md:divide-y-0 md:divide-x divide-[#303139]">
+                <div class="px-2 pt-2 md:pt-0">
+                    <span class="block text-[11px] font-mono text-[#ff951f] mb-0.5">01 / ARCHITECTURE</span>
+                    <h4 class="text-sm font-semibold text-[#f4f5f7]">Zero Hallucination</h4>
+                    <p class="text-xs text-[#c9ced8] mt-0.5">ดึงข้อมูลจริงจากฐานข้อมูล API ทั่วโลก ไม่มีการเดาตอน</p>
+                </div>
+                <div class="px-2 pt-2 md:pt-0 pl-0 md:pl-4">
+                    <span class="block text-[11px] font-mono text-[#ff951f] mb-0.5">02 / EFFICIENCY</span>
+                    <h4 class="text-sm font-semibold text-[#f4f5f7]">Time Saved Metric</h4>
+                    <p class="text-xs text-[#c9ced8] mt-0.5">คำนวณชั่วโมงที่ประหยัดได้เมื่อข้ามตอนเสริม</p>
+                </div>
+                <div class="px-2 pt-2 md:pt-0 pl-0 md:pl-4">
+                    <span class="block text-[11px] font-mono text-[#ff951f] mb-0.5">03 / PORTABILITY</span>
+                    <h4 class="text-sm font-semibold text-[#f4f5f7]">Progress Sync</h4>
+                    <p class="text-xs text-[#c9ced8] mt-0.5">รหัสซิงก์ข้อมูลต่อเนื่องระหว่างคอมและมือถือ</p>
+                </div>
+                <div class="px-2 pt-2 md:pt-0 pl-0 md:pl-4">
+                    <span class="block text-[11px] font-mono text-[#ff951f] mb-0.5">04 / ECOSYSTEM</span>
+                    <h4 class="text-sm font-semibold text-[#f4f5f7]">All Categories</h4>
+                    <p class="text-xs text-[#c9ced8] mt-0.5">รองรับอนิเมะ ซีรีส์เกาหลี ฝรั่ง และญี่ปุ่น</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden flex-col items-center justify-center py-20">
+            <div class="w-8 h-8 border-2 border-[#303139] border-t-[#ff951f] rounded-full animate-spin mb-3"></div>
+            <p class="text-xs font-mono text-[#c9ced8]" id="loadingText">PARSING STORY ARCS & CANON METADATA...</p>
+        </div>
+
+        <!-- Guide Display Area (Initially Hidden) -->
+        <div id="guideContainer" class="hidden space-y-6">
+            
+            <!-- Anime/Series Hero Card -->
+            <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-6 space-y-6 relative overflow-hidden">
+                <div class="flex flex-col md:flex-row gap-6 items-start">
+                    <!-- Poster with Editorial Radius (4px) -->
+                    <img id="animeCover" src="" alt="Cover" class="w-36 sm:w-44 h-52 sm:h-60 object-cover rounded-[4px] border border-[#303139] bg-[#07090e] shrink-0">
+                    
+                    <div class="flex-1 space-y-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span id="animeFormat" class="px-2.5 py-0.5 text-xs font-mono font-medium bg-[#101522] text-[#ff951f] border border-[#ff951f]/40 rounded-[3px]">TV</span>
+                            <span id="animeYear" class="px-2.5 py-0.5 text-xs font-mono text-[#c9ced8] bg-[#07090e] border border-[#303139] rounded-[3px]">2024</span>
+                            <span id="animeScore" class="px-2.5 py-0.5 text-xs font-mono text-[#edcd8c] bg-[#07090e] border border-[#303139] rounded-[3px] flex items-center gap-1">
+                                <span>SCORE:</span>
+                                <span id="scoreText">85%</span>
+                            </span>
+                        </div>
+
+                        <h2 id="animeTitleEnglish" class="text-2xl sm:text-3xl font-medium tracking-tight text-[#f4f5f7]">Title English</h2>
+                        <p id="animeTitleRomaji" class="text-xs font-mono text-[#c9ced8]">Title Romaji / Network</p>
+
+                        <div id="animeGenres" class="flex flex-wrap gap-1.5 pt-1">
+                            <!-- Genre pills -->
+                        </div>
+
+                        <p id="animeDesc" class="text-xs sm:text-sm text-[#c9ced8] leading-relaxed line-clamp-3 pt-1">
+                            Synopsis...
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Legal Streaming Strip -->
+                <div class="border-t border-[#303139] pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <span class="text-xs font-mono text-[#c9ced8] uppercase tracking-wider">OFFICIAL STREAMING / แหล่งรับชมถูกลิขสิทธิ์:</span>
+                    <div id="streamingLinksContainer" class="flex flex-wrap items-center gap-2">
+                        <!-- Dynamic Streaming Badges -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Numerical Metrics (Gold Numerical Emphasis on Opaque Panels) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Stat 1: Canon Episodes -->
+                <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-5 space-y-1">
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#c9ced8]/70">CANON EPISODES / เนื้อเรื่องหลัก</span>
+                    <div id="statCanonCount" class="text-3xl font-mono font-bold text-[#edcd8c] tabular-nums">0 ตอน</div>
+                    <p class="text-[11px] text-[#c9ced8]">ต้องดูเพื่อดำเนินเรื่องตามต้นฉบับ</p>
+                </div>
+
+                <!-- Stat 2: Filler Episodes -->
+                <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-5 space-y-1">
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#c9ced8]/70">FILLER / ตอนคั่นและพิเศษ</span>
+                    <div id="statFillerCount" class="text-3xl font-mono font-bold text-[#f4f5f7] tabular-nums">0 ตอน (0%)</div>
+                    <p class="text-[11px] text-[#c9ced8]">สามารถกดข้ามได้โดยไม่เสียเนื้อเรื่อง</p>
+                </div>
+
+                <!-- Stat 3: Time Saved -->
+                <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-5 space-y-1">
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#c9ced8]/70">TIME SAVED / เวลาที่ประหยัดได้</span>
+                    <div id="statTimeSaved" class="text-3xl font-mono font-bold text-[#edcd8c] tabular-nums">0 ชม.</div>
+                    <p class="text-[11px] text-[#c9ced8]">คำนวณจากความยาวตอนเฉลี่ย</p>
+                </div>
+
+                <!-- Stat 4: Action Button -->
+                <div class="bg-[#101522] border border-[#303139] rounded-[5px] p-5 flex flex-col justify-center space-y-2">
+                    <button onclick="copyWatchList()" class="w-full py-2.5 px-4 bg-[#ff951f] hover:bg-[#e68214] text-[#07090e] rounded-[40px] text-xs font-semibold uppercase tracking-wider font-mono flex items-center justify-center gap-1.5 shadow-sm">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>COPY WATCHLIST</span>
+                    </button>
+                    <span class="text-[10px] text-center font-mono text-[#c9ced8]/60">EXPORT EPISODE SEQUENCE</span>
+                </div>
+            </div>
+
+            <!-- AI Verdict Box (Opaque Panel with subtle warm light) -->
+            <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-6 space-y-3 relative">
+                <div class="flex items-center justify-between border-b border-[#303139] pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-[#ff951f]"></span>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-[#f4f5f7]">AI CURATION SYNTHESIS</h3>
+                    </div>
+                    <span class="text-[11px] font-mono text-[#edcd8c]">ENGINE 1.5 PRO</span>
+                </div>
+
+                <p id="aiVerdictText" class="text-sm text-[#f4f5f7] leading-relaxed"></p>
+
+                <div class="pt-2">
+                    <span class="text-[11px] font-mono uppercase tracking-wider text-[#ff951f] block mb-1">RECOMMENDED SEQUENCE:</span>
+                    <div id="aiWatchRangeText" class="text-xs font-mono text-[#edcd8c] bg-[#07090e] p-3 rounded-[4px] border border-[#303139] select-all overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Controls: Tabs & Filters -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-b border-[#303139] pb-4">
+                <!-- View Mode Tabs -->
+                <div class="flex p-1 bg-[#10141c] rounded-[40px] border border-[#303139] text-xs font-mono w-full sm:w-auto">
+                    <button id="tabArcs" onclick="switchView('arcs')" class="flex-1 sm:flex-none px-4 py-2 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold transition">
+                        SEASON / ARC VIEW
+                    </button>
+                    <button id="tabEpisodes" onclick="switchView('episodes')" class="flex-1 sm:flex-none px-4 py-2 rounded-[40px] text-[#c9ced8] hover:text-[#f4f5f7] transition">
+                        ALL EPISODES
+                    </button>
+                </div>
+
+                <!-- Episode Filter Pills (Only in Episode View) -->
+                <div id="filterPills" class="hidden flex items-center gap-1.5 text-xs font-mono">
+                    <button onclick="setFilter('all')" id="filterAll" class="px-3 py-1 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold">ALL</button>
+                    <button onclick="setFilter('canon')" id="filterCanon" class="px-3 py-1 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]">CANON ONLY</button>
+                    <button onclick="setFilter('filler')" id="filterFiller" class="px-3 py-1 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]">FILLER ONLY</button>
+                </div>
+
+                <!-- Watched Progress Counter -->
+                <div class="text-xs font-mono text-[#c9ced8] flex items-center gap-3">
+                    <span id="watchedCountLabel">WATCHED: 0 EPS</span>
+                    <button onclick="clearWatchedProgress()" class="text-[#c9ced8]/60 hover:text-[#ff951f] underline">RESET</button>
+                </div>
+            </div>
+
+            <!-- View 1: Arc Groups -->
+            <div id="arcsViewContainer" class="space-y-3">
+                <!-- Rendered dynamically -->
+            </div>
+
+            <!-- View 2: Detailed Episode Table -->
+            <div id="episodesViewContainer" class="hidden bg-[#10141c] border border-[#303139] rounded-[5px] overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono text-[#c9ced8]">
+                        <thead class="bg-[#07090e] text-[#f4f5f7] uppercase tracking-wider border-b border-[#303139]">
+                            <tr>
+                                <th class="py-3 px-4 w-12 text-center">SEEN</th>
+                                <th class="py-3 px-4 w-20">NO.</th>
+                                <th class="py-3 px-4 font-sans">TITLE</th>
+                                <th class="py-3 px-4 w-44">CLASSIFICATION</th>
+                                <th class="py-3 px-4 w-32 text-center">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="episodesTableBody" class="divide-y divide-[#303139]">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Default Feature Matrix (Three-column capability arrangement) -->
+        <div id="homeFeatures" class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-4">
+            <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-6 space-y-2">
+                <span class="text-xs font-mono text-[#ff951f]">01 / GLOBAL INDEX</span>
+                <h3 class="text-base font-semibold text-[#f4f5f7]">ครอบคลุมทุกเรื่องทั่วโลก</h3>
+                <p class="text-xs text-[#c9ced8] leading-relaxed">
+                    เชื่อมต่อฐานข้อมูล AniList และ TVMaze ครอบคลุมทั้งอนิเมะญี่ปุ่น ซีรีส์เกาหลี ซีรีส์ฝรั่ง และญี่ปุ่น พร้อมระบบแคช SQLite ในตัว
+                </p>
+            </div>
+
+            <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-6 space-y-2">
+                <span class="text-xs font-mono text-[#ff951f]">02 / ACCURACY MATRIX</span>
+                <h3 class="text-base font-semibold text-[#f4f5f7]">คัดกรองเนื้อเรื่อง 100%</h3>
+                <p class="text-xs text-[#c9ced8] leading-relaxed">
+                    ตัดตอนเสริม ตอนย้อนความ (Recap) และฟิลเลอร์ออกให้อัตโนมัติ บอกชัดเจนว่าตอนไหนต้องดู ตอนไหนข้ามได้ ประหยัดเวลาดูไปได้หลายสิบชั่วโมง
+                </p>
+            </div>
+
+            <div class="bg-[#10141c] border border-[#303139] rounded-[5px] p-6 space-y-2">
+                <span class="text-xs font-mono text-[#ff951f]">03 / PORTABLE TOKEN</span>
+                <h3 class="text-base font-semibold text-[#f4f5f7]">ซิงก์ความคืบหน้า & PWA</h3>
+                <p class="text-xs text-[#c9ced8] leading-relaxed">
+                    มีรหัส Device Sync เพื่อเชื่อมต่อสถานะตอนที่ดูแล้วไปยังสมาร์ตโฟน พร้อมรองรับการติดตั้งเป็นแอป PWA บนหน้าจอโฮม
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Closing Area with Dark Tinted Field -->
+    <footer class="mt-auto border-t border-[#303139] bg-[#07090e] py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-[#c9ced8]/60">
+            <div>
+                <span>ANIFILTER EPISODE CURATION PLATFORM</span>
+                <span class="mx-2">|</span>
+                <span>PRODUCTION SPEC 2.0</span>
+            </div>
+            <div>
+                <span>AUTHENTIC CANON INDEX • ZERO FABRICATION</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- AI Copilot Floating Drawer Button -->
+    <button 
+        id="openChatBtn" 
+        onclick="toggleChatDrawer()"
+        class="fixed bottom-6 right-6 z-50 px-4 py-2.5 bg-[#ff951f] hover:bg-[#e68214] text-[#07090e] rounded-[40px] shadow-2xl flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider transition border border-[#ff951f]"
+    >
+        <i data-lucide="message-square" class="w-4 h-4"></i>
+        <span>AI COPILOT</span>
+    </button>
+
+    <!-- AI Chat Drawer -->
+    <div id="chatDrawer" class="hidden fixed bottom-20 right-6 w-96 max-w-[calc(100vw-3rem)] bg-[#10141c] border border-[#303139] rounded-[5px] shadow-2xl z-50 flex flex-col overflow-hidden custom-scrollbar">
+        <!-- Header -->
+        <div class="p-3.5 bg-[#07090e] border-b border-[#303139] flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-[#ff951f]"></span>
+                <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-[#f4f5f7]">AI REASONING COPILOT</h4>
+            </div>
+            <button onclick="toggleChatDrawer()" class="text-[#c9ced8] hover:text-[#f4f5f7] p-1">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Chat History -->
+        <div id="chatMessages" class="p-4 space-y-3 h-80 overflow-y-auto custom-scrollbar text-xs">
+            <div class="bg-[#101522] border border-[#303139] p-3 rounded-[4px] text-[#c9ced8] leading-relaxed">
+                สวัสดีครับ! สอบถามเกี่ยวกับตอนไหนควรดู ตอนไหนข้ามได้ หรือลำดับการดูได้เลยครับ
+            </div>
+        </div>
+
+        <!-- Suggested Question Pills -->
+        <div class="px-3 pb-2 flex gap-1.5 overflow-x-auto text-[11px] font-mono whitespace-nowrap custom-scrollbar">
+            <button onclick="sendQuickQuestion('ข้ามตอนไหนได้บ้างแบบกระชับ?')" class="px-2.5 py-1 rounded-[40px] bg-[#07090e] hover:border-[#ff951f] text-[#c9ced8] border border-[#303139]">ข้ามตอนไหนได้บ้าง?</button>
+            <button onclick="sendQuickQuestion('เรื่องนี้ต้องดูเรียงยังไง?')" class="px-2.5 py-1 rounded-[40px] bg-[#07090e] hover:border-[#ff951f] text-[#c9ced8] border border-[#303139]">ต้องดูเรียงยังไง?</button>
+            <button onclick="sendQuickQuestion('มีตอนพิเศษที่ควรดูไหม?')" class="px-2.5 py-1 rounded-[40px] bg-[#07090e] hover:border-[#ff951f] text-[#c9ced8] border border-[#303139]">มีตอนพิเศษไหม?</button>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="p-3 bg-[#07090e] border-t border-[#303139] flex items-center gap-2">
+            <input 
+                type="text" 
+                id="chatInput"
+                placeholder="พิมพ์คำถามของคุณที่นี่..."
+                class="flex-1 px-3 py-2 bg-[#10141c] border border-[#303139] rounded-[40px] text-[#f4f5f7] text-xs placeholder-[#c9ced8]/40 focus:outline-none focus:border-[#ff951f]"
+                onkeydown="if(event.key === 'Enter') sendChatMessage()"
+            >
+            <button onclick="sendChatMessage()" class="p-2 bg-[#ff951f] hover:bg-[#e68214] text-[#07090e] rounded-full transition">
+                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sync Code Modal -->
+    <div id="syncModal" class="hidden fixed inset-0 z-50 bg-[#07090e]/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-[#10141c] border border-[#303139] rounded-[5px] max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#303139] pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#edcd8c]"></span>
+                    <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-[#f4f5f7]">CROSS-DEVICE TELEMETRY SYNC</h3>
+                </div>
+                <button onclick="closeSyncModal()" class="text-[#c9ced8] hover:text-[#f4f5f7] p-1">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="bg-[#07090e] border border-[#303139] rounded-[4px] p-4 text-center space-y-2">
+                <span class="text-[11px] font-mono uppercase tracking-wider text-[#c9ced8]">YOUR PORTABLE SYNC TOKEN:</span>
+                <div class="text-2xl font-mono font-bold text-[#edcd8c] tracking-widest flex items-center justify-center gap-2">
+                    <span id="currentSyncCodeDisplay">SYNC-XXXX</span>
+                    <button onclick="copySyncCode()" class="text-[#c9ced8] hover:text-[#ff951f] text-xs p-1">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <p class="text-[11px] text-[#c9ced8]/70">นำรหัสนี้ไปกรอกบนอุปกรณ์อื่นเพื่อซิงก์ประวัติการดูข้ามเครื่อง</p>
+            </div>
+
+            <div class="space-y-2 pt-1 font-mono">
+                <label class="text-xs text-[#c9ced8]">INPUT TOKEN FROM ANOTHER DEVICE:</label>
+                <div class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="inputSyncCode" 
+                        placeholder="e.g. SYNC-8492"
+                        class="flex-1 px-3 py-2 bg-[#07090e] border border-[#303139] rounded-[40px] text-[#f4f5f7] text-xs font-mono uppercase focus:outline-none focus:border-[#ff951f]"
+                    >
+                    <button onclick="applySyncCode()" class="px-4 py-2 bg-[#ff951f] hover:bg-[#e68214] text-[#07090e] rounded-[40px] text-xs font-semibold uppercase tracking-wider font-mono">
+                        CONNECT
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-2 text-right">
+                <button onclick="closeSyncModal()" class="px-4 py-1.5 bg-[#07090e] hover:bg-[#101522] text-[#c9ced8] border border-[#303139] rounded-[40px] text-xs font-mono">
+                    DISMISS
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend Application Logic (Stack, Routes, Behavior Preserved) -->
+    <script>
+        let currentAnimeData = null;
+        let currentFilter = 'all';
+        let currentView = 'arcs';
+        let currentMediaType = 'all';
+        let searchTimeout = null;
+
+        function setMediaType(type) {
+            currentMediaType = type;
+            const activeClass = 'px-3.5 py-1.5 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold';
+            const inactiveClass = 'px-3.5 py-1.5 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]';
+
+            document.getElementById('btnMediaAll').className = type === 'all' ? activeClass : inactiveClass;
+            document.getElementById('btnMediaAnime').className = type === 'anime' ? activeClass : inactiveClass;
+            document.getElementById('btnMediaSeries').className = type === 'series' ? activeClass : inactiveClass;
+            
+            const q = document.getElementById('searchInput').value.trim();
+            if (q) executeSearch(q);
+        }
+
+        // Sync Code Management
+        function getOrCreateSyncCode() {
+            let code = localStorage.getItem('anifilter_sync_code');
+            if (!code) {
+                const rand = Math.floor(1000 + Math.random() * 9000);
+                code = `SYNC-${rand}`;
+                localStorage.setItem('anifilter_sync_code', code);
+            }
+            return code;
+        }
+
+        // Initialize Lucide Icons & PWA
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initServiceWorker();
+            updateSyncBadge();
+            loadAnimeGuide(269, "Bleach");
+        });
+
+        // Aggressively purge any old Service Worker / CacheStorage
+        function initServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                    }
+                });
+            }
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                });
+            }
+        }
+
+        function openSyncModal() {
+            const code = getOrCreateSyncCode();
+            document.getElementById('currentSyncCodeDisplay').textContent = code;
+            document.getElementById('syncModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeSyncModal() {
+            document.getElementById('syncModal').classList.add('hidden');
+        }
+
+        function copySyncCode() {
+            const code = getOrCreateSyncCode();
+            navigator.clipboard.writeText(code).then(() => {
+                alert("คัดลอกรหัสซิงก์เรียบร้อยแล้ว: " + code);
+            });
+        }
+
+        function applySyncCode() {
+            const val = document.getElementById('inputSyncCode').value.trim().toUpperCase();
+            if (val) {
+                localStorage.setItem('anifilter_sync_code', val);
+                alert("เชื่อมต่อรหัสซิงก์: " + val + " เรียบร้อยแล้ว!");
+                closeSyncModal();
+                updateSyncBadge();
+                if (currentAnimeData) {
+                    syncWatchedFromServer(currentAnimeData.metadata.id);
+                }
+            }
+        }
+
+        function updateSyncBadge() {
+            const code = getOrCreateSyncCode();
+            document.getElementById('syncStatusBadge').textContent = code;
+        }
+
+        // Search Handlers
+        function handleSearchKey(e) {
+            if (e.key === 'Enter') {
+                triggerSearch();
+                return;
+            }
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(() => executeSearch(query), 350);
+            } else {
+                hideDropdown();
+            }
+        }
+
+        function triggerSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (query) {
+                executeSearch(query);
+            }
+        }
+
+        function quickSearch(title) {
+            document.getElementById('searchInput').value = title;
+            executeSearch(title);
+        }
+
+        async function executeSearch(query) {
+            try {
+                const dropdown = document.getElementById('searchDropdown');
+                dropdown.innerHTML = `<div class="p-4 text-center text-xs font-mono text-[#c9ced8]">SEARCHING: "${query}"...</div>`;
+                dropdown.classList.remove('hidden');
+
+                const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&media_type=${currentMediaType}`);
+                const data = await res.json();
+                renderDropdownResults(data.results);
+            } catch (err) {
+                console.error("Search error:", err);
+            }
+        }
+
+        function renderDropdownResults(results) {
+            const dropdown = document.getElementById('searchDropdown');
+            if (!results || results.length === 0) {
+                dropdown.innerHTML = `<div class="p-4 text-center text-xs font-mono text-[#c9ced8]">NO RESULTS FOUND. TRY ENGLISH / ROMAJI NAME.</div>`;
+                return;
+            }
+
+            dropdown.innerHTML = results.map(item => {
+                const isSeries = String(item.id).startsWith('tv_');
+                const badgeStyle = isSeries ? 'border-[#ff951f]/40 text-[#ff951f] bg-[#101522]' : 'border-[#303139] text-[#c9ced8] bg-[#07090e]';
+
+                return `
+                    <div 
+                        onclick="selectMedia('${item.id}', '${escapeQuote(item.title_english || item.title_romaji)}')"
+                        class="p-3 hover:bg-[#101522] cursor-pointer flex items-center gap-3 border-b border-[#303139]/60 last:border-none transition"
+                    >
+                        <img src="${item.cover_image || ''}" class="w-10 h-14 object-cover rounded-[3px] bg-[#07090e] border border-[#303139] shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h4 class="text-sm font-medium text-[#f4f5f7] truncate">${item.title_english || item.title_romaji}</h4>
+                                <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-mono border ${badgeStyle}">${item.format || 'ANIME'}</span>
+                            </div>
+                            <p class="text-xs font-mono text-[#c9ced8]/70 truncate">${item.title_romaji || ''} ${item.network ? '• ' + item.network : ''}</p>
+                            <div class="flex items-center gap-2 mt-1 text-[11px] font-mono text-[#c9ced8]/60">
+                                ${item.episodes ? `<span>${item.episodes} EPS</span>` : ''}
+                                ${item.year ? `<span>• ${item.year}</span>` : ''}
+                                ${item.score ? `<span class="text-[#edcd8c]">• ${item.score}%</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            dropdown.classList.remove('hidden');
+        }
+
+        function hideDropdown() {
+            document.getElementById('searchDropdown').classList.add('hidden');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#searchInput') && !e.target.closest('#searchDropdown')) {
+                hideDropdown();
+            }
+        });
+
+        function escapeQuote(str) {
+            return (str || '').replace(/'/g, "\\'");
+        }
+
+        function selectMedia(id, title) {
+            hideDropdown();
+            loadAnimeGuide(id, title);
+        }
+
+        // Load Anime or Live-Action Series Guide
+        async function loadAnimeGuide(id, title) {
+            const loading = document.getElementById('loadingState');
+            const guide = document.getElementById('guideContainer');
+            const features = document.getElementById('homeFeatures');
+
+            loading.classList.remove('hidden');
+            guide.classList.add('hidden');
+            features.classList.add('hidden');
+
+            try {
+                const res = await fetch(`/api/guide?id=${encodeURIComponent(id)}&title=${encodeURIComponent(title || '')}`);
+                if (!res.ok) throw new Error("Failed to load guide");
+                const data = await res.json();
+                currentAnimeData = data;
+
+                renderAnimeHero(data.metadata);
+                renderStreamingLinks(data.streaming_links || []);
+                renderStats(data.stats, data.ai_analysis);
+                renderArcs(data.arcs);
+                renderEpisodesTable(data.episodes);
+                
+                await syncWatchedFromServer(id);
+
+                loading.classList.add('hidden');
+                guide.classList.remove('hidden');
+                lucide.createIcons();
+            } catch (err) {
+                loading.classList.add('hidden');
+                alert("เกิดข้อผิดพลาดในการโหลดข้อมูล: " + err.message);
+            }
+        }
+
+        function renderAnimeHero(meta) {
+            document.getElementById('animeCover').src = meta.cover_image || '';
+            document.getElementById('animeTitleEnglish').textContent = meta.title_english || meta.title_romaji;
+            document.getElementById('animeTitleRomaji').textContent = `${meta.title_romaji || ''} ${meta.title_native ? '• ' + meta.title_native : ''}`;
+            document.getElementById('animeFormat').textContent = meta.format || 'TV';
+            document.getElementById('animeYear').textContent = meta.year || 'N/A';
+            document.getElementById('scoreText').textContent = meta.score ? `${meta.score}%` : 'N/A';
+            document.getElementById('animeDesc').textContent = (meta.description || 'ไม่มีคำอธิบาย').replace(/<[^>]*>?/gm, '');
+
+            const genresContainer = document.getElementById('animeGenres');
+            genresContainer.innerHTML = (meta.genres || []).map(g => `
+                <span class="px-2 py-0.5 rounded-[3px] bg-[#07090e] text-[11px] font-mono text-[#c9ced8] border border-[#303139]">${g}</span>
+            `).join('');
+        }
+
+        function renderStreamingLinks(links) {
+            const container = document.getElementById('streamingLinksContainer');
+            if (!links || links.length === 0) {
+                container.innerHTML = `<span class="text-xs font-mono text-[#c9ced8]/60">NO SOURCES INDEXED</span>`;
+                return;
+            }
+
+            container.innerHTML = links.map(l => `
+                <a 
+                    href="${l.url}" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    class="px-2.5 py-1 rounded-[40px] bg-[#07090e] hover:border-[#ff951f] text-xs font-mono text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] flex items-center gap-1.5 transition"
+                >
+                    <i data-lucide="${l.icon}" class="w-3 h-3 text-[#ff951f]"></i>
+                    <span>${l.name}</span>
+                </a>
+            `).join('');
+        }
+
+        function renderStats(stats, ai) {
+            document.getElementById('statCanonCount').textContent = `${stats.canon_count} ตอน`;
+            document.getElementById('statFillerCount').textContent = `${stats.filler_count} ตอน (${stats.filler_percentage}%)`;
+            document.getElementById('statTimeSaved').textContent = `${stats.time_saved_hours} ชม.`;
+
+            document.getElementById('aiVerdictText').innerHTML = ai.verdict.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#f4f5f7]">$1</strong>');
+            document.getElementById('aiWatchRangeText').textContent = stats.watch_ranges.join('  ➔  ');
+        }
+
+        function renderArcs(arcs) {
+            const container = document.getElementById('arcsViewContainer');
+            if (!arcs || arcs.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-xs font-mono text-[#c9ced8] bg-[#10141c] border border-[#303139] rounded-[5px]">NO ARCS DEFINED</div>`;
+                return;
+            }
+
+            container.innerHTML = arcs.map(arc => {
+                const isFiller = arc.is_filler;
+                const statusBadge = isFiller 
+                    ? 'border-[#303139] text-[#c9ced8] bg-[#07090e]' 
+                    : 'border-[#ff951f]/40 text-[#edcd8c] bg-[#101522]';
+
+                const recBadge = isFiller
+                    ? 'bg-[#07090e] text-[#c9ced8] border border-[#303139]'
+                    : 'bg-[#ff951f] text-[#07090e] font-semibold';
+
+                return `
+                    <div class="p-4 rounded-[5px] border border-[#303139] bg-[#10141c] transition">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-medium text-sm text-[#f4f5f7]">${arc.title}</h4>
+                                    <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-mono border ${statusBadge}">${arc.status_label}</span>
+                                </div>
+                                <p class="text-xs text-[#c9ced8]">${arc.description}</p>
+                            </div>
+                            <div class="shrink-0 self-start sm:self-center">
+                                <span class="px-3 py-1 rounded-[40px] text-xs font-mono uppercase tracking-wider ${recBadge}">
+                                    ${arc.recommendation}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderEpisodesTable(episodes) {
+            const tbody = document.getElementById('episodesTableBody');
+            if (!episodes || episodes.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs font-mono text-[#c9ced8]">NO EPISODES REGISTERED</td></tr>`;
+                return;
+            }
+
+            const watchedSet = getWatchedSet();
+
+            tbody.innerHTML = episodes.map(ep => {
+                const isWatched = watchedSet.has(ep.number);
+                let badgeClass = 'text-[#c9ced8] border border-[#303139] bg-[#07090e]';
+                let recText = 'STANDARD';
+                let recClass = 'text-[#c9ced8]';
+
+                if (ep.badge === 'canon') {
+                    badgeClass = 'text-[#edcd8c] border border-[#ff951f]/40 bg-[#101522]';
+                    recClass = 'text-[#edcd8c] font-semibold';
+                    recText = 'MUST WATCH';
+                } else if (ep.badge === 'filler') {
+                    badgeClass = 'text-[#c9ced8]/60 border border-[#303139] bg-[#07090e]';
+                    recClass = 'text-[#c9ced8]/50';
+                    recText = 'SKIP';
+                } else if (ep.badge === 'mixed') {
+                    badgeClass = 'text-[#ff951f] border border-[#ff951f]/30 bg-[#101522]';
+                    recClass = 'text-[#ff951f]';
+                    recText = 'RECOMMENDED';
+                }
+
+                return `
+                    <tr class="episode-row hover:bg-[#101522] transition ${isWatched ? 'opacity-35 line-through' : ''}" data-type="${ep.badge}">
+                        <td class="py-2.5 px-4 text-center">
+                            <input 
+                                type="checkbox" 
+                                ${isWatched ? 'checked' : ''} 
+                                onchange="toggleWatched(${ep.number}, this)"
+                                class="w-3.5 h-3.5 rounded-[2px] bg-[#07090e] border-[#303139] text-[#ff951f] focus:ring-0 cursor-pointer"
+                            >
+                        </td>
+                        <td class="py-2.5 px-4 font-mono font-medium text-[#edcd8c]">#${ep.number}</td>
+                        <td class="py-2.5 px-4 text-[#f4f5f7] font-sans">
+                            <span>${ep.title}</span>
+                            ${ep.air_date ? `<span class="text-[11px] font-mono text-[#c9ced8]/50 ml-2">(${ep.air_date})</span>` : ''}
+                        </td>
+                        <td class="py-2.5 px-4">
+                            <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-mono uppercase ${badgeClass}">
+                                ${ep.type}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-4 text-center font-mono text-[11px] ${recClass}">
+                            ${recText}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // View Switching
+        function switchView(view) {
+            currentView = view;
+            const tabArcs = document.getElementById('tabArcs');
+            const tabEpisodes = document.getElementById('tabEpisodes');
+            const arcsContainer = document.getElementById('arcsViewContainer');
+            const epContainer = document.getElementById('episodesViewContainer');
+            const filterPills = document.getElementById('filterPills');
+
+            const activeBtn = 'flex-1 sm:flex-none px-4 py-2 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold transition';
+            const inactiveBtn = 'flex-1 sm:flex-none px-4 py-2 rounded-[40px] text-[#c9ced8] hover:text-[#f4f5f7] transition';
+
+            if (view === 'arcs') {
+                tabArcs.className = activeBtn;
+                tabEpisodes.className = inactiveBtn;
+                arcsContainer.classList.remove('hidden');
+                epContainer.classList.add('hidden');
+                filterPills.classList.add('hidden');
+            } else {
+                tabEpisodes.className = activeBtn;
+                tabArcs.className = inactiveBtn;
+                arcsContainer.classList.add('hidden');
+                epContainer.classList.remove('hidden');
+                filterPills.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function setFilter(type) {
+            currentFilter = type;
+            const rows = document.querySelectorAll('.episode-row');
+            
+            const activeFilter = 'px-3 py-1 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold';
+            const inactiveFilter = 'px-3 py-1 rounded-[40px] bg-[#10141c] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139]';
+
+            document.getElementById('filterAll').className = type === 'all' ? activeFilter : inactiveFilter;
+            document.getElementById('filterCanon').className = type === 'canon' ? activeFilter : inactiveFilter;
+            document.getElementById('filterFiller').className = type === 'filler' ? activeFilter : inactiveFilter;
+
+            rows.forEach(r => {
+                const rowType = r.getAttribute('data-type');
+                if (type === 'all') {
+                    r.style.display = '';
+                } else if (type === 'canon' && (rowType === 'canon' || rowType === 'mixed' || rowType === 'anime_canon')) {
+                    r.style.display = '';
+                } else if (type === 'filler' && rowType === 'filler') {
+                    r.style.display = '';
+                } else {
+                    r.style.display = 'none';
+                }
+            });
+        }
+
+        function getStorageKey() {
+            return currentAnimeData ? `anifilter_watched_${currentAnimeData.metadata.id}` : null;
+        }
+
+        function getWatchedSet() {
+            const key = getStorageKey();
+            if (!key) return new Set();
+            try {
+                const stored = JSON.parse(localStorage.getItem(key) || '[]');
+                return new Set(stored);
+            } catch {
+                return new Set();
+            }
+        }
+
+        async function syncWatchedFromServer(mediaId) {
+            const syncCode = getOrCreateSyncCode();
+            try {
+                const res = await fetch(`/api/progress/load?sync_code=${encodeURIComponent(syncCode)}&anime_id=${encodeURIComponent(mediaId)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.watched_episodes && data.watched_episodes.length > 0) {
+                        const localSet = getWatchedSet();
+                        data.watched_episodes.forEach(e => localSet.add(e));
+                        localStorage.setItem(getStorageKey(), JSON.stringify(Array.from(localSet)));
+                        if (currentAnimeData) {
+                            renderEpisodesTable(currentAnimeData.episodes);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log("Server sync check err:", err);
+            }
+            updateWatchedCounter();
+        }
+
+        function toggleWatched(epNum, checkbox) {
+            const key = getStorageKey();
+            if (!key) return;
+            const watched = getWatchedSet();
+            if (checkbox.checked) {
+                watched.add(epNum);
+                checkbox.closest('tr').classList.add('opacity-35', 'line-through');
+            } else {
+                watched.delete(epNum);
+                checkbox.closest('tr').classList.remove('opacity-35', 'line-through');
+            }
+            const arr = Array.from(watched);
+            localStorage.setItem(key, JSON.stringify(arr));
+            updateWatchedCounter();
+
+            const syncCode = getOrCreateSyncCode();
+            fetch('/api/progress/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sync_code: syncCode,
+                    anime_id: String(currentAnimeData.metadata.id),
+                    watched_episodes: arr
+                })
+            }).catch(() => {});
+        }
+
+        function clearWatchedProgress() {
+            const key = getStorageKey();
+            if (!key) return;
+            if (confirm("คุณต้องการรีเซ็ตสถานะการดูของเรื่องนี้ทั้งหมดใช่หรือไม่?")) {
+                localStorage.removeItem(key);
+                if (currentAnimeData) {
+                    const syncCode = getOrCreateSyncCode();
+                    fetch('/api/progress/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            sync_code: syncCode,
+                            anime_id: String(currentAnimeData.metadata.id),
+                            watched_episodes: []
+                        })
+                    }).catch(() => {});
+
+                    renderEpisodesTable(currentAnimeData.episodes);
+                    updateWatchedCounter();
+                }
+            }
+        }
+
+        function updateWatchedCounter() {
+            const watched = getWatchedSet();
+            const total = currentAnimeData ? currentAnimeData.stats.total_episodes : 0;
+            const pct = total > 0 ? Math.round((watched.size / total) * 100) : 0;
+            document.getElementById('watchedCountLabel').textContent = `WATCHED: ${watched.size}/${total} (${pct}%)`;
+        }
+
+        function copyWatchList() {
+            if (!currentAnimeData) return;
+            const ranges = currentAnimeData.stats.watch_ranges.join(', ');
+            const text = `📋 รายการตอนที่ต้องดูของ ${currentAnimeData.metadata.title_english}:\n${ranges}\n(สร้างโดย AniFilter AI)`;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("คัดลอกช่วงตอนที่ต้องดูเรียบร้อยแล้ว!\n" + ranges);
+            });
+        }
+
+        function toggleChatDrawer() {
+            const drawer = document.getElementById('chatDrawer');
+            drawer.classList.toggle('hidden');
+            lucide.createIcons();
+        }
+
+        function sendQuickQuestion(q) {
+            document.getElementById('chatInput').value = q;
+            sendChatMessage();
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const q = input.value.trim();
+            if (!q) return;
+
+            const chatMessages = document.getElementById('chatMessages');
+            
+            chatMessages.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-[#ff951f] text-[#07090e] p-2.5 rounded-[4px] max-w-[85%] font-medium leading-relaxed">
+                        ${q}
+                    </div>
+                </div>
+            `;
+            input.value = '';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            const loadingId = 'loading-' + Date.now();
+            chatMessages.innerHTML += `
+                <div id="${loadingId}" class="flex items-center gap-2 text-xs font-mono text-[#edcd8c] py-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#ff951f] animate-ping"></span>
+                    <span>SYNTHESIZING...</span>
+                </div>
+            `;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const animeTitle = currentAnimeData ? currentAnimeData.metadata.title_english : "อนิเมะ/ซีรีส์";
+                const res = await fetch('/api/ask', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        question: q,
+                        anime_title: animeTitle,
+                        context: currentAnimeData ? currentAnimeData.stats : {}
+                    })
+                });
+                const data = await res.json();
+                
+                document.getElementById(loadingId)?.remove();
+                chatMessages.innerHTML += `
+                    <div class="bg-[#101522] border border-[#303139] p-3 rounded-[4px] text-[#f4f5f7] leading-relaxed">
+                        ${data.answer.replace(/\n/g, '<br>')}
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById(loadingId)?.remove();
+                chatMessages.innerHTML += `
+                    <div class="bg-[#10141c] border border-rose-500/40 p-2.5 rounded-[4px] text-rose-300">
+                        ขออภัย เกิดข้อผิดพลาดในการตอบคำถาม
+                    </div>
+                `;
+            }
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function resetToHome() {
+            document.getElementById('guideContainer').classList.add('hidden');
+            document.getElementById('homeFeatures').classList.remove('hidden');
+            document.getElementById('searchInput').value = '';
+        }
+    </script>
+</body>
+</html>

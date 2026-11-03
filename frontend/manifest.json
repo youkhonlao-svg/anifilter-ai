@@ -1,0 +1,17 @@
+{
+  "name": "AniFilter AI — ระบบคัดกรองตอนสำคัญในอนิเมะและหนัง",
+  "short_name": "AniFilter AI",
+  "description": "ระบบ AI ช่วยคัดกรองเนื้อเรื่องหลัก (Canon) และตัดตอนคั่น (Filler) สำหรับอนิเมะและภาพยนตร์ทุกเรื่องในโลก",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f111a",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
