@@ -24,6 +24,11 @@ TITLE_SLUG_MAP = {
     "inuyasha": "inuyasha",
     "pokemon": "pokemon",
     "hunter x hunter": "hunter-x-hunter",
+    "hunter x hunter 2011": "hunter-x-hunter",
+    "hunter hunter 2011": "hunter-x-hunter",
+    "hunter hunter": "hunter-x-hunter",
+    "hunter x hunter 1999": "hunter-x-hunter-1999",
+    "hunter hunter 1999": "hunter-x-hunter-1999",
     "fullmetal alchemist": "fullmetal-alchemist",
     "fullmetal alchemist brotherhood": "fullmetal-alchemist-brotherhood",
     "sword art online": "sword-art-online",
@@ -121,48 +126,97 @@ def _slug_exists(slug: str) -> bool:
     except Exception:
         return False
 
-def find_best_slug(title: str, alt_titles: List[str] = None) -> Optional[str]:
-    """Find the best matching AnimeFillerList slug for an anime title."""
+def find_best_slug(title: str, alt_titles: List[str] = None, expected_episodes: Optional[int] = None, format: str = "TV") -> Optional[str]:
+    """
+    Find the best matching AnimeFillerList slug for an anime title.
+    Prevents movie/film false positives for TV anime and uses token-based matching.
+    """
     candidates = [title] + (alt_titles or [])
+    is_tv = (format or "TV").upper() == "TV"
 
-    # 1. Check manual overrides first
+    # 1. Check manual overrides first (exact, without year, without articles)
     for c in candidates:
         if not c:
             continue
         norm = _normalize(c)
-        if norm in TITLE_SLUG_MAP:
-            return TITLE_SLUG_MAP[norm]
-        # Also try without articles and special chars
-        clean = _normalize(re.sub(r"\b(the|a|an)\b", "", norm))
-        if clean in TITLE_SLUG_MAP:
-            return TITLE_SLUG_MAP[clean]
+        no_year = re.sub(r"\b(19\d\d|20\d\d)\b", "", norm).strip()
+        no_year = re.sub(r"\s+", " ", no_year)
 
-    # 2. Check AnimeFillerList index (fetched from their website)
+        for variant in (norm, no_year):
+            if variant in TITLE_SLUG_MAP:
+                return TITLE_SLUG_MAP[variant]
+            clean = _normalize(re.sub(r"\b(the|a|an)\b", "", variant))
+            if clean in TITLE_SLUG_MAP:
+                return TITLE_SLUG_MAP[clean]
+
+    # 2. Check AnimeFillerList index with smart scoring
     shows = get_shows_index()
-    for c in candidates:
-        if not c:
-            continue
-        variants = [
-            _normalize(c),
-            _normalize(re.sub(r"\b(the|a|an)\b", "", c)),
-            _normalize(re.sub(r"[^a-z0-9\s]", "", c.lower())),
-            _normalize(c.replace(":", "").replace("-", " ")),
-        ]
-        for v in variants:
-            if v in shows:
-                return shows[v]
-            # Substring match
-            for show_norm, slug in shows.items():
-                if len(v) > 4 and (v in show_norm or show_norm in v):
-                    return slug
+    if not shows:
+        return None
 
-    # 3. Try constructing a slug directly and verify it exists
+    # Collect cleaned query variations
+    queries = []
     for c in candidates:
         if not c:
             continue
-        slug = _to_slug(re.sub(r"[^a-z0-9\s-]", "", c.lower()))
-        if slug and _slug_exists(slug):
-            return slug
+        norm = _normalize(c)
+        if norm:
+            queries.append(norm)
+        no_year = re.sub(r"\b(19\d\d|20\d\d)\b", "", norm).strip()
+        no_year = re.sub(r"\s+", " ", no_year)
+        if no_year and no_year != norm:
+            queries.append(no_year)
+
+    best_slug = None
+    best_score = -1
+
+    for q in queries:
+        q_words = set(w for w in q.split() if len(w) > 1 or w in ("x",))
+        if not q_words:
+            continue
+
+        for show_norm, slug in shows.items():
+            # For TV shows: strictly penalize/exclude slugs ending with film/movie/ova suffixes
+            is_film_slug = slug.endswith(("-films", "-movies", "-ovas", "-specials"))
+            if is_tv and is_film_slug:
+                continue
+
+            show_words = set(w for w in show_norm.split() if len(w) > 1 or w in ("x",))
+            if not show_words:
+                continue
+
+            score = 0
+            if q == show_norm:
+                score = 100
+            elif q_words == show_words:
+                score = 90
+            elif q_words.issubset(show_words) or show_words.issubset(q_words):
+                overlap = len(q_words & show_words)
+                total = len(q_words | show_words)
+                score = (overlap / total) * 80
+            else:
+                continue
+
+            # Penalize slugs with extra qualifiers if searching for base TV show
+            if is_film_slug:
+                score -= 40
+
+            if score > best_score:
+                best_score = score
+                best_slug = slug
+
+    if best_slug and best_score >= 40:
+        return best_slug
+
+    # 3. Direct slug fallback if verified
+    for c in candidates:
+        if not c:
+            continue
+        no_year = re.sub(r"\b(19\d\d|20\d\d)\b", "", c).strip()
+        for variant in (c, no_year):
+            slug = _to_slug(re.sub(r"[^a-z0-9\s-]", "", variant.lower()))
+            if slug and not (is_tv and slug.endswith(("-films", "-movies"))) and _slug_exists(slug):
+                return slug
 
     return None
 

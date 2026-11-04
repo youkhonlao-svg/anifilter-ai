@@ -151,14 +151,18 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
     english_title = details.get("title", {}).get("english") or ""
     alt_candidates = [english_title, romaji_title]
     anime_format = details.get("format", "TV")
+    ep_count = details.get("episodes")
 
-    slug = find_best_slug(primary_title, alt_candidates)
+    slug = find_best_slug(primary_title, alt_candidates, expected_episodes=ep_count, format=anime_format)
     filler_data = None
     if slug:
         filler_data = get_episodes_from_filler_list(slug)
+        # Sanity validation: If AniList expected 20+ episodes, but scraper returned <= 5 episodes (e.g. movies/films list)
+        if filler_data and ep_count and ep_count >= 20 and filler_data.get("total_episodes", 0) <= 5:
+            print(f"Warning: Rejected mismatched slug '{slug}' with only {filler_data.get('total_episodes')} eps (expected {ep_count})")
+            filler_data = None
 
     if not filler_data:
-        ep_count = details.get("episodes")
         filler_data = generate_smart_episodes(ep_count, primary_title, anime_format)
 
     # ── Classify related content (OVA / Special / Sequel / etc.) ──────────
