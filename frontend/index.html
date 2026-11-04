@@ -397,6 +397,22 @@
                 </div>
             </div>
 
+            <!-- Franchise Seasons & Timeline Navigation Bar -->
+            <div id="franchiseTimelinePanel" class="hidden bg-[#10141c] border border-[#ff951f]/40 rounded-[5px] p-5 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#303139] pb-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4 text-[#ff951f]"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-[#edcd8c]">
+                            FRANCHISE SEASONS & TIMELINE / ซีซันและภาคทั้งหมดของเรื่องนี้
+                        </h3>
+                    </div>
+                    <span id="franchiseTotalSummary" class="text-xs font-mono text-[#ff951f] font-medium"></span>
+                </div>
+                <div id="franchiseTimelinePills" class="flex flex-wrap items-center gap-2.5 pt-1">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+
             <!-- Controls: Tabs & Filters -->
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-b border-[#303139] pb-4">
                 <!-- View Mode Tabs -->
@@ -823,6 +839,7 @@
                 renderAnimeHero(data.metadata);
                 renderStreamingLinks(data.streaming_links || []);
                 renderStats(data.stats, data.ai_analysis);
+                renderFranchiseTimeline(data.metadata, data.related_content || []);
                 renderArcs(data.arcs);
                 renderEpisodesTable(data.episodes);
                 renderRelatedContent(data.related_content || []);
@@ -996,6 +1013,127 @@
             lucide.createIcons();
         }
 
+        // ── Franchise Seasons & Timeline Bar ──────────────────────────────────
+        function renderFranchiseTimeline(meta, related) {
+            const panel = document.getElementById('franchiseTimelinePanel');
+            const pillsContainer = document.getElementById('franchiseTimelinePills');
+            const summaryEl = document.getElementById('franchiseTotalSummary');
+
+            if (!related || related.length === 0) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            // Filter anime-type relations (sequels, prequels, summaries, movies)
+            const franchiseItems = [];
+            
+            // Prequels first
+            related.filter(r => r.kind === 'prequel').forEach(r => franchiseItems.push(r));
+            
+            // Current show in the middle
+            const currentTitle = meta.title_english || meta.title_romaji || 'ภาคปัจจุบัน';
+            const currentItem = {
+                id: meta.id,
+                title: currentTitle,
+                format: meta.format || 'TV',
+                episodes: meta.episodes,
+                kind: 'current',
+                thai_label: 'กำลังดูอยู่',
+                is_current: true
+            };
+            franchiseItems.push(currentItem);
+
+            // Sequels next
+            related.filter(r => r.kind === 'sequel').forEach(r => franchiseItems.push(r));
+
+            // Movies & Specials & Recaps
+            related.filter(r => ['summary', 'side_story', 'alt', 'spinoff'].includes(r.kind)).forEach(r => franchiseItems.push(r));
+
+            // Only show panel if there is at least one other season or movie
+            if (franchiseItems.length <= 1) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            // Calculate total franchise episodes
+            let totalKnownEpisodes = 0;
+            let seasonsCount = 0;
+            franchiseItems.forEach(item => {
+                if (item.episodes) totalKnownEpisodes += item.episodes;
+                if (item.format === 'TV' || item.kind === 'sequel' || item.kind === 'prequel' || item.is_current) {
+                    seasonsCount += 1;
+                }
+            });
+
+            summaryEl.textContent = `รวมทั้งจักรวาล ~${totalKnownEpisodes} ตอน (${seasonsCount} ซีซัน/ภาค)`;
+
+            pillsContainer.innerHTML = franchiseItems.map(item => {
+                const epLabel = item.episodes ? `${item.episodes} ตอน` : '';
+                const fmtLabel = item.format || 'ANIME';
+
+                if (item.is_current) {
+                    return `
+                        <div class="px-4 py-2 rounded-[40px] bg-[#ff951f] text-[#07090e] font-semibold text-xs font-mono flex items-center gap-2 ring-2 ring-[#ff951f]/50 shadow-md">
+                            <span>📍 ${item.title}</span>
+                            <span class="bg-[#07090e]/20 text-[#07090e] px-2 py-0.5 rounded-full text-[10px] font-bold">${epLabel || fmtLabel} (เปิดอยู่)</span>
+                        </div>
+                    `;
+                }
+
+                if (item.kind === 'sequel') {
+                    return `
+                        <button 
+                            onclick="loadAnimeGuide('${item.id}', '${escapeQuote(item.title)}')"
+                            class="px-4 py-2 rounded-[40px] bg-[#101522] hover:bg-[#ff951f] text-[#f4f5f7] hover:text-[#07090e] border border-[#ff951f]/60 hover:border-[#ff951f] font-semibold text-xs font-mono flex items-center gap-2 transition cursor-pointer group shadow-sm"
+                            title="คลิกเพื่อสลับไปดูซีซันนี้"
+                        >
+                            <span>🔥 ภาคต่อ: ${item.title}</span>
+                            <span class="bg-[#ff951f]/20 group-hover:bg-[#07090e]/20 text-[#edcd8c] group-hover:text-[#07090e] px-2 py-0.5 rounded-full text-[10px] font-bold">${epLabel || 'ดูต่อ'} ➔</span>
+                        </button>
+                    `;
+                }
+
+                if (item.kind === 'prequel') {
+                    return `
+                        <button 
+                            onclick="loadAnimeGuide('${item.id}', '${escapeQuote(item.title)}')"
+                            class="px-4 py-2 rounded-[40px] bg-[#101522] hover:bg-[#101522] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] hover:border-[#edcd8c] text-xs font-mono flex items-center gap-2 transition cursor-pointer"
+                            title="คลิกเพื่อสลับไปดูภาคก่อนหน้า"
+                        >
+                            <span>⏮️ ภาคก่อน: ${item.title}</span>
+                            ${epLabel ? `<span class="text-[10px] text-[#c9ced8]/70">(${epLabel})</span>` : ''}
+                        </button>
+                    `;
+                }
+
+                if (item.kind === 'summary') {
+                    return `
+                        <button 
+                            onclick="loadAnimeGuide('${item.id}', '${escapeQuote(item.title)}')"
+                            class="px-3.5 py-1.5 rounded-[40px] bg-[#07090e] hover:bg-[#101522] text-[#c9ced8]/80 hover:text-[#f4f5f7] border border-[#303139] hover:border-red-500/50 text-[11px] font-mono flex items-center gap-1.5 transition cursor-pointer"
+                            title="คลิกดูข้อมูลภาพยนตร์สรุป (ข้ามได้)"
+                        >
+                            <span>⏭️ Recap: ${item.title}</span>
+                            <span class="text-[10px] text-red-400/80">(ข้ามได้)</span>
+                        </button>
+                    `;
+                }
+
+                return `
+                    <button 
+                        onclick="loadAnimeGuide('${item.id}', '${escapeQuote(item.title)}')"
+                        class="px-3.5 py-1.5 rounded-[40px] bg-[#07090e] hover:bg-[#101522] text-[#c9ced8] hover:text-[#f4f5f7] border border-[#303139] hover:border-[#ff951f] text-[11px] font-mono flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                        <span>⭐ ${item.title}</span>
+                        ${epLabel ? `<span class="text-[10px] text-[#edcd8c]">(${epLabel})</span>` : ''}
+                    </button>
+                `;
+            }).join('');
+
+            panel.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
         // ── Related Content (OVA / Specials / Sequel / Prequel) ──────────────
         function renderRelatedContent(related) {
             const panel = document.getElementById('relatedContentPanel');
@@ -1021,7 +1159,11 @@
                     ? `<img src="${item.cover_image}" class="w-10 h-14 object-cover rounded-[3px] border border-[#303139] shrink-0">`
                     : `<div class="w-10 h-14 rounded-[3px] border border-[#303139] bg-[#07090e] shrink-0 flex items-center justify-center"><i data-lucide="film" class="w-4 h-4 text-[#303139]"></i></div>`;
                 return `
-                    <div class="p-4 rounded-[5px] border ${c.border} bg-[#10141c] space-y-2.5 ${isImportant ? 'ring-1 ring-[#edcd8c]/20' : ''}">
+                    <div 
+                        onclick="loadAnimeGuide('${item.id}', '${escapeQuote(item.title)}')"
+                        class="p-4 rounded-[5px] border ${c.border} hover:border-[#ff951f] bg-[#10141c] hover:bg-[#101522] space-y-2.5 ${isImportant ? 'ring-1 ring-[#edcd8c]/20' : ''} cursor-pointer transition group shadow-sm"
+                        title="คลิกเพื่อเปิดดูข้อมูลของ ${item.title}"
+                    >
                         <div class="flex items-start gap-3">
                             ${coverHtml}
                             <div class="flex-1 min-w-0 space-y-1">
@@ -1030,12 +1172,13 @@
                                     <span class="text-[10px] font-mono uppercase ${c.text}">${item.thai_label}</span>
                                     ${isImportant ? '<span class="text-[9px] font-mono bg-[#edcd8c]/15 text-[#edcd8c] px-1.5 py-0.5 rounded-[2px]">RECOMMENDED</span>' : ''}
                                 </div>
-                                <h4 class="text-xs font-medium text-[#f4f5f7] leading-snug">${item.title || item.title_romaji || '-'}</h4>
+                                <h4 class="text-xs font-medium text-[#f4f5f7] group-hover:text-[#ff951f] leading-snug transition">${item.title || item.title_romaji || '-'}</h4>
                                 ${meta ? `<p class="text-[10px] font-mono text-[#c9ced8]/60">${meta}</p>` : ''}
                             </div>
                         </div>
-                        <div class="pt-1 border-t border-[#303139]">
+                        <div class="pt-2 border-t border-[#303139] flex items-center justify-between gap-2">
                             <p class="text-[11px] text-[#c9ced8] leading-relaxed">${item.recommendation}</p>
+                            <span class="text-[10px] font-mono text-[#ff951f] shrink-0 group-hover:translate-x-0.5 transition">คลิกดู ➔</span>
                         </div>
                     </div>`;
             }).join('');

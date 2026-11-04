@@ -284,18 +284,65 @@ def _compute_ranges(episodes: List[Dict], exclude_badge: str = None,
     ranges.append(str(start) if start == prev else f"{start}-{prev}")
     return ranges
 
+KNOWN_SEASONAL_EXTRAS = {
+    "solo leveling": [
+        {
+            "insert_after": 7,
+            "number": 7.5,
+            "title": "Episode 7.5: How to Get Stronger (ตอนพิเศษย้อนความ)",
+            "type": "Special Recap (ตอนพิเศษย้อนความ)",
+            "badge": "filler",
+            "watch_recommendation": "SKIP",
+            "air_date": "2024-02-24",
+            "summary": "ตอนย้อนความสรุปเหตุการณ์ครึ่งแรกของซีซัน 1 (ข้ามได้โดยไม่พลาดเนื้อเรื่องใหม่)"
+        }
+    ],
+    "jujutsu kaisen": [
+        {
+            "insert_after": 29,
+            "number": 29.5,
+            "title": "Episode 29.5: Hidden Inventory Arc Recap",
+            "type": "Special Recap (ตอนพิเศษย้อนความ)",
+            "badge": "filler",
+            "watch_recommendation": "SKIP",
+            "air_date": "2023-08-10",
+            "summary": "ตอนสรุปเนื้อหาย้อนความช่วงอดีตของโกโจ (ข้ามได้)"
+        }
+    ],
+    "mushoku tensei": [
+        {
+            "insert_after": 0,
+            "number": 0,
+            "title": "Episode 0: Guardian Fitz (ปฐมบท)",
+            "type": "Canon Special",
+            "badge": "canon",
+            "watch_recommendation": "MUST_WATCH",
+            "air_date": "2023-07-02",
+            "summary": "ปฐมบทสำคัญก่อนเริ่มซีซัน 2 (แนะนำดู)"
+        }
+    ]
+}
+
 def generate_smart_episodes(ep_count: Optional[int], title: str,
                              fmt: str = "TV") -> Dict[str, Any]:
     """
     Generate episode data for anime NOT in AnimeFillerList.
-    Uses format + episode count to give smarter guidance.
+    Uses format + episode count + known seasonal recaps to give smarter guidance.
     """
     count = ep_count if ep_count and ep_count > 0 else 12
     fmt = (fmt or "TV").upper()
+    title_norm = _normalize(title)
+
+    # Check if this anime has known seasonal recap / special episodes
+    known_extras = []
+    for key, extras in KNOWN_SEASONAL_EXTRAS.items():
+        if key in title_norm or title_norm in key:
+            known_extras = extras
+            break
 
     # Determine if this format can have filler at all
     no_filler_formats = {"MOVIE", "OVA", "SPECIAL", "ONA", "TV_SHORT", "MUSIC"}
-    if fmt in no_filler_formats:
+    if fmt in no_filler_formats and not known_extras:
         note = _format_note(fmt, count)
         episodes = _all_canon(count, fmt)
         return {
@@ -312,48 +359,72 @@ def generate_smart_episodes(ep_count: Optional[int], title: str,
             "note": note,
         }
 
-    # TV anime: episode count guides assumption
-    if count <= 26:
-        # Short/seasonal TV anime — almost always all-canon, no filler
+    # Build episode list
+    episodes = []
+    extras_inserted = 0
+    filler_count = 0
+    canon_count = 0
+
+    for i in range(1, count + 1):
+        episodes.append({
+            "number": i,
+            "title": f"Episode {i}",
+            "type": "Canon",
+            "badge": "canon",
+            "watch_recommendation": "MUST_WATCH",
+            "air_date": "",
+            "summary": ""
+        })
+        canon_count += 1
+
+        # Check if an extra episode should be inserted after episode i
+        for ex in known_extras:
+            if ex["insert_after"] == i:
+                episodes.append(ex)
+                if ex["badge"] == "filler":
+                    filler_count += 1
+                else:
+                    canon_count += 1
+                extras_inserted += 1
+
+    total_episodes = len(episodes)
+    filler_pct = round((filler_count / total_episodes) * 100, 1) if total_episodes > 0 else 0.0
+    time_saved_hours = round((filler_count * 24) / 60, 1)
+
+    watch_ranges = _compute_ranges(episodes, exclude_badge="filler")
+    skip_ranges = [str(e["number"]) for e in episodes if e["badge"] == "filler"]
+
+    if known_extras:
+        note = (
+            f"🎯 อนิเมะ {count} ตอนหลัก + {extras_inserted} ตอนพิเศษ/ย้อนความ — "
+            f"ระบบตรวจพบตอนพิเศษ Recap {', '.join(skip_ranges)} ซึ่งสามารถกดข้ามได้โดยไม่เสียอรรถรสเนื้อเรื่องหลัก"
+        )
+    elif count <= 26:
         note = (
             f"🎯 อนิเมะ {count} ตอน (**{_ep_label(count)}**) — "
             f"อนิเมะขนาดสั้นถึงกลางมักไม่มีตอน Filler ระบบแนะนำดูครบทุกตอน "
             f"(ไม่พบข้อมูล Filler อย่างเป็นทางการใน AnimeFillerList)"
         )
-        return {
-            "source": "AniList (TV Anime — Short/Seasonal, Assumed All-Canon)",
-            "total_episodes": count,
-            "canon_count": count,
-            "mixed_count": 0,
-            "filler_count": 0,
-            "filler_percentage": 0.0,
-            "time_saved_hours": 0.0,
-            "watch_ranges": [f"1-{count}" if count > 1 else "1"],
-            "skip_ranges": [],
-            "episodes": _all_canon(count, "TV"),
-            "note": note,
-        }
     else:
-        # Long-running TV anime — may have filler but we don't have exact data
         note = (
             f"⚠️ อนิเมะ {count} ตอน (**ยาว**) — "
             f"ระบบไม่พบข้อมูล Filler อย่างเป็นทางการใน AnimeFillerList สำหรับเรื่องนี้ "
-            f"แสดงผลตอนทั้งหมดเป็น Canon (อาจมี Filler บ้าง แต่ไม่มีข้อมูลยืนยัน) "
-            f"แนะนำดูเรียงตามลำดับและข้ามเฉพาะตอนที่รู้สึกว่าหลุดจากเนื้อเรื่องหลัก"
+            f"แสดงผลตอนทั้งหมดเป็น Canon แนะนำดูเรียงตามลำดับ"
         )
-        return {
-            "source": "AniList (TV Anime — Long-Running, No Filler Data Found)",
-            "total_episodes": count,
-            "canon_count": count,
-            "mixed_count": 0,
-            "filler_count": 0,
-            "filler_percentage": 0.0,
-            "time_saved_hours": 0.0,
-            "watch_ranges": [f"1-{count}"],
-            "skip_ranges": [],
-            "episodes": _all_canon(count, "TV"),
-            "note": note,
-        }
+
+    return {
+        "source": "AniList + Smart Extra Detection",
+        "total_episodes": total_episodes,
+        "canon_count": canon_count,
+        "mixed_count": 0,
+        "filler_count": filler_count,
+        "filler_percentage": filler_pct,
+        "time_saved_hours": time_saved_hours,
+        "watch_ranges": watch_ranges,
+        "skip_ranges": skip_ranges,
+        "episodes": episodes,
+        "note": note,
+    }
 
 def _all_canon(count: int, fmt: str) -> List[Dict]:
     """Generate a list of all-canon episodes."""

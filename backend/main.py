@@ -168,7 +168,7 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
     ai_summary = generate_ai_analysis({
         "title_english": english_title or primary_title,
         "title_romaji": romaji_title
-    }, filler_data)
+    }, filler_data, related_content)
 
     arcs = group_episodes_into_arcs(filler_data["episodes"], primary_title)
     streaming_links = get_legal_streaming_links(english_title or primary_title)

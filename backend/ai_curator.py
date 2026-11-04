@@ -326,8 +326,8 @@ def _create_arc_summary(eps: List[Dict], arc_type: str, index: int, title: str) 
         "sample_episodes": eps[:3]
     }
 
-def generate_ai_analysis(anime_meta: Dict[str, Any], filler_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate intelligent Thai guidance and recommendations."""
+def generate_ai_analysis(anime_meta: Dict[str, Any], filler_data: Dict[str, Any], related_content: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Generate intelligent Thai guidance and recommendations, including franchise/sequel awareness."""
     title = anime_meta.get("title_english") or anime_meta.get("title_romaji") or "Anime"
     total = filler_data["total_episodes"]
     filler_cnt = filler_data["filler_count"]
@@ -347,10 +347,32 @@ def generate_ai_analysis(anime_meta: Dict[str, Any], filler_data: Dict[str, Any]
         action_plan = f"ดูตามช่วง: {' ➔ '.join(watch_ranges)}"
     else:
         verdict = (
-            f"✨ **{title}** มีฟิลเลอร์เพียง {filler_pct}% ({filler_cnt} ตอน) "
+            f"✨ **{title}** มีฟิลเลอร์/ตอนพิเศษเพียง {filler_pct}% ({filler_cnt} ตอน) "
             f"ส่วนใหญ่เป็นเนื้อเรื่องหลัก ข้ามได้เล็กน้อยประหยัดเวลา {saved_hours} ชั่วโมงครับ"
         )
         action_plan = f"ช่วงเนื้อหลัก: {' ➔ '.join(watch_ranges)}"
+
+    # Add franchise intelligence (sequels, prequels, recap movies)
+    if related_content:
+        sequels = [r for r in related_content if r.get("kind") == "sequel"]
+        summaries = [r for r in related_content if r.get("kind") == "summary"]
+        prequels = [r for r in related_content if r.get("kind") == "prequel"]
+
+        extra_notes = []
+        if sequels:
+            s = sequels[0]
+            s_eps = f" ({s.get('episodes')} ตอน)" if s.get('episodes') else ""
+            extra_notes.append(f"🔥 **ภาคต่อ:** เรื่องนี้มีภาคต่อคือ **{s['title']}**{s_eps} สามารถคลิกสลับซีซันที่แถบ 'ลำดับซีซัน' เพื่อดูต่อได้ทันที!")
+        if prequels:
+            p = prequels[0]
+            p_eps = f" ({p.get('episodes')} ตอน)" if p.get('episodes') else ""
+            extra_notes.append(f"⏮️ **ภาคก่อนหน้า:** เรื่องนี้มีภาคก่อนคือ **{p['title']}**{p_eps} แนะนำดูก่อนเพื่อความเข้าใจครบถ้วน")
+        if summaries:
+            sm = summaries[0]
+            extra_notes.append(f"⏭️ **ตอนสรุป (Recap):** มีมูฟวี่/ตอนพิเศษสรุปคือ **{sm['title']}** สามารถข้ามได้หากดูซีซันหลักมาแล้ว")
+
+        if extra_notes:
+            verdict += "<br><br>" + "<br>".join(extra_notes)
 
     return {
         "verdict": verdict,
