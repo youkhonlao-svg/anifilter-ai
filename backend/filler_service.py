@@ -48,13 +48,33 @@ TITLE_SLUG_MAP = {
     "food wars": "food-wars-shokugeki-no-soma",
 }
 
+import unicodedata
+
+def clean_diacritics(text: str) -> str:
+    """Normalize text by converting macrons (ū->u, ō->o) and removing accents/diacritics."""
+    if not text:
+        return ""
+    rep = {
+        'ū': 'u', 'Ū': 'U',
+        'ō': 'o', 'Ō': 'O',
+        'ā': 'a', 'Ā': 'A',
+        'ī': 'i', 'Ī': 'I',
+        'ē': 'e', 'Ē': 'E',
+    }
+    for k, v in rep.items():
+        text = text.replace(k, v)
+    normalized = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in normalized if not unicodedata.combining(c))
+
 def _normalize(text: str) -> str:
     """Normalize a title for comparison."""
-    return re.sub(r"[^a-z0-9\s]", "", text.lower()).strip()
+    cleaned = clean_diacritics(text)
+    return re.sub(r"[^a-z0-9\s]", "", cleaned.lower()).strip()
 
 def _to_slug(text: str) -> str:
     """Convert a title to a slug format."""
-    clean = re.sub(r"[^a-z0-9\s-]", "", text.lower())
+    cleaned = clean_diacritics(text)
+    clean = re.sub(r"[^a-z0-9\s-]", "", cleaned.lower())
     return re.sub(r"\s+", "-", clean.strip())
 
 def get_shows_index() -> Dict[str, str]:

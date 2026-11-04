@@ -7,11 +7,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
-from backend.anilist_service import search_anime, get_anime_details, classify_related_content
+from backend.anilist_service import search_anime, get_anime_details, classify_related_content, clean_diacritics
 from backend.filler_service import find_best_slug, get_episodes_from_filler_list, generate_smart_episodes, generate_default_episodes
 from backend.ai_curator import group_episodes_into_arcs, generate_ai_analysis, answer_ai_question
 from backend.database import save_user_progress, get_user_progress
 from backend.series_service import search_live_action_series, get_series_guide
+import requests
 
 app = FastAPI(title="AniFilter AI API", description="AI Anime & Movie & TV Series Canon/Filler Assistant")
 
@@ -89,7 +90,7 @@ def api_search(q: str = Query(..., min_length=1), media_type: str = Query("all")
     # 3. Deduplicate: if AniList already has a title, remove TVMaze duplicate
     #    AniList anime always takes priority over TVMaze for the same title
     def _norm(t: str) -> str:
-        return _re.sub(r"[^a-z0-9]", "", (t or "").lower())
+        return _re.sub(r"[^a-z0-9]", "", clean_diacritics(t or "").lower())
 
     anime_titles = {_norm(r.get("title_english", "") or r.get("title_romaji", "")) for r in anime_results}
 
@@ -97,7 +98,7 @@ def api_search(q: str = Query(..., min_length=1), media_type: str = Query("all")
     for s in series_results:
         s_title = _norm(s.get("title_english", "") or "")
         # Skip TVMaze result if AniList already has a very similar title
-        if s_title and s_title in anime_titles:
+        if s_title and (s_title in anime_titles or any(s_title in at or at in s_title for at in anime_titles)):
             continue
         deduped_series.append(s)
 
@@ -112,6 +113,24 @@ def api_guide(id: str = Query(...), title: Optional[str] = Query(None)):
     # Check if this is a live-action series (ID format: tv_12345)
     if str(id).startswith("tv_"):
         series_id = int(str(id).replace("tv_", ""))
+        
+        # Automatic Anime Bridge: If this TVMaze show is actually an Animation or Anime,
+        # redirect seamlessly to AniList so the user gets full Canon/Filler intelligence!
+        try:
+            url_show = f"https://api.tvmaze.com/shows/{series_id}"
+            resp_show = requests.get(url_show, timeout=5)
+            if resp_show.status_code == 200:
+                s_data = resp_show.json()
+                s_type = (s_data.get("type") or "").lower()
+                s_genres = [g.lower() for g in s_data.get("genres", [])]
+                if s_type == "animation" or "anime" in s_genres:
+                    show_name = s_data.get("name", "")
+                    anime_matches = search_anime(show_name)
+                    if anime_matches:
+                        return api_guide(id=str(anime_matches[0]["id"]), title=anime_matches[0]["title_english"])
+        except Exception as e:
+            print(f"Bridge check error: {e}")
+
         guide = get_series_guide(series_id)
         if not guide:
             raise HTTPException(status_code=404, detail="Series not found")

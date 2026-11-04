@@ -1,9 +1,26 @@
 import re
 import requests
+import unicodedata
 from typing import List, Dict, Any, Optional
 from backend.database import get_cached_anime, set_cached_anime
 
 ANILIST_API_URL = "https://graphql.anilist.co"
+
+def clean_diacritics(text: str) -> str:
+    """Normalize text by converting macrons (ū->u, ō->o) and removing accents/diacritics."""
+    if not text:
+        return ""
+    rep = {
+        'ū': 'u', 'Ū': 'U',
+        'ō': 'o', 'Ō': 'O',
+        'ā': 'a', 'Ā': 'A',
+        'ī': 'i', 'Ī': 'I',
+        'ē': 'e', 'Ē': 'E',
+    }
+    for k, v in rep.items():
+        text = text.replace(k, v)
+    normalized = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in normalized if not unicodedata.combining(c))
 
 SEARCH_QUERY = """
 query ($search: String) {
@@ -87,11 +104,12 @@ FORMAT_LABELS = {
 }
 
 def search_anime(query: str) -> List[Dict[str, Any]]:
-    """Search AniList for anime matching query."""
+    """Search AniList for anime matching query, with automatic diacritic normalization."""
+    clean_q = clean_diacritics(query).strip()
     try:
         response = requests.post(
             ANILIST_API_URL,
-            json={"query": SEARCH_QUERY, "variables": {"search": query}},
+            json={"query": SEARCH_QUERY, "variables": {"search": clean_q or query}},
             timeout=10
         )
         if response.status_code == 200:

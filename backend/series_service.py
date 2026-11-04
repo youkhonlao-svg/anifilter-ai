@@ -51,7 +51,7 @@ def is_special_episode(ep: dict) -> bool:
     return False
 
 def search_live_action_series(query: str) -> List[Dict[str, Any]]:
-    """Search TVMaze for live-action TV series (Korean, Japanese, US, etc.)."""
+    """Search TVMaze for live-action TV series (Korean, Japanese, US, etc.). Excludes anime/animation."""
     try:
         url = f"{TVMAZE_API_URL}/search/shows?q={urllib.parse.quote(query)}"
         resp = requests.get(url, timeout=10)
@@ -59,6 +59,13 @@ def search_live_action_series(query: str) -> List[Dict[str, Any]]:
             results = []
             for item in resp.json():
                 show = item.get("show", {})
+                
+                # Exclude anime and animation from live-action series search
+                show_type = (show.get("type") or "").lower()
+                genres = [g.lower() for g in show.get("genres", [])]
+                if show_type == "animation" or "anime" in genres:
+                    continue
+
                 country_code = ""
                 network = show.get("network") or show.get("webChannel") or {}
                 if isinstance(network, dict):

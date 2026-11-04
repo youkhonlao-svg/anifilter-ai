@@ -137,9 +137,28 @@ NAMED_ARCS: Dict[str, List[Dict]] = {
     ],
 }
 
+import unicodedata
+
+def clean_diacritics(text: str) -> str:
+    """Normalize text by converting macrons (ū->u, ō->o) and removing accents/diacritics."""
+    if not text:
+        return ""
+    rep = {
+        'ū': 'u', 'Ū': 'U',
+        'ō': 'o', 'Ō': 'O',
+        'ā': 'a', 'Ā': 'A',
+        'ī': 'i', 'Ī': 'I',
+        'ē': 'e', 'Ē': 'E',
+    }
+    for k, v in rep.items():
+        text = text.replace(k, v)
+    normalized = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in normalized if not unicodedata.combining(c))
+
 def _normalize_title(title: str) -> str:
     """Normalize title for lookup in NAMED_ARCS dict."""
-    return re.sub(r"[^a-z0-9\s]", "", title.lower()).strip()
+    cleaned = clean_diacritics(title)
+    return re.sub(r"[^a-z0-9\s]", "", cleaned.lower()).strip()
 
 def _find_named_arcs(title: str) -> Optional[List[Dict]]:
     """Try to find named arcs for a given anime title."""
